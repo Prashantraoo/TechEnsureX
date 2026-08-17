@@ -1,185 +1,375 @@
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { HeartPulse, Activity, Droplet, Brain, Upload, AlertTriangle, ShieldCheck, Loader2 } from "lucide-react";
+import { HeartPulse, Activity, Droplet, Upload, AlertTriangle, ShieldCheck, Loader2, Bot, FileText, CheckCircle2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { healthApi, aiApi, uploadApi } from "@/lib/api";
+import { uploadApi } from "@/lib/api";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { LoadingState } from "@/components/shared/LoadingState";
+import { EmptyState } from "@/components/shared/EmptyState";
+
+type FindingStatus = "normal" | "high" | "low" | "abnormal" | "unknown";
+
+interface DocumentAnalysisResult {
+  documentSummary: string;
+  patientDetails: { name: string; age: string; sex: string; reportDate: string };
+  keyFindings: Array<{ finding: string; value: string; status: FindingStatus }>;
+  medications: string[];
+  diagnoses: string[];
+  labResults: Array<{ test: string; value: string; unit: string; referenceRange: string; status: FindingStatus }>;
+  riskScore: { score: number; reasoning: string };
+  recommendations: string[];
+  disclaimer: string;
+}
+
+type UploadStage = "idle" | "uploading" | "extracting" | "analyzing";
+
+function statusTone(status: FindingStatus): string {
+  switch (status) {
+    case "high":
+    case "abnormal":
+      return "text-destructive border-destructive/30";
+    case "low":
+      return "text-warning border-warning/30";
+    case "normal":
+      return "text-accent border-accent/30";
+    default:
+      return "text-muted-foreground border-border";
+  }
+}
+
+function statusLabel(status: FindingStatus): string {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+// Vitals aren't a distinct structured field the backend returns — they're
+// whatever the report's own lab table happens to contain. We look for a
+// matching row by test name rather than inventing a value, and show "Not
+// available in report" when a report genuinely doesn't include that test.
+type VitalDef = { icon: typeof HeartPulse; label: string; match: RegExp };
+const VITAL_DEFS: VitalDef[] = [
+  { icon: HeartPulse, label: "Heart rate", match: /heart\s*rate|pulse/i },
+  { icon: Droplet, label: "Blood pressure", match: /blood\s*pressure|\bbp\b/i },
+  { icon: Activity, label: "Glucose", match: /glucose|blood\s*sugar/i },
+];
+
+function findVital(labResults: DocumentAnalysisResult["labResults"], pattern: RegExp) {
+  return labResults.find((l) => pattern.test(l.test));
+}
 
 export default function HealthReport() {
-  const [report, setReport] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [aiSummary, setAiSummary] = useState<string | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadStage, setUploadStage] = useState<UploadStage>("idle");
+  const [analysis, setAnalysis] = useState<DocumentAnalysisResult | null>(null);
+  const [analysisFileName, setAnalysisFileName] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Hydrate from the most recently uploaded/analyzed report so refreshing
+  // the page doesn't blank out real data the user already has.
   useEffect(() => {
     async function load() {
       try {
-        const { data } = await healthApi.getReport();
-        setReport(data.report);
-      } catch { /* defaults */ }
+        const { data } = await uploadApi.getScans();
+        const latest = data.scans?.[0];
+        if (latest?.analysis) {
+          setAnalysis(latest.analysis as DocumentAnalysisResult);
+          setAnalysisFileName(latest.fileName ?? null);
+        }
+      } catch {
+        /* no prior scans yet — not an error state */
+      }
       setLoading(false);
     }
     load();
   }, []);
 
-  const cvRisk = report?.cardiovascularRisk ?? 18;
-  const dbRisk = report?.diabetesRisk ?? 38;
-  const wellness = report?.wellnessScore ?? 84;
-  const hypertension = Math.round((cvRisk + dbRisk) / 3);
-  const respiratory = Math.max(5, Math.round(cvRisk * 0.6));
-
-  const vitals = [
-    { icon: HeartPulse, label: "Heart rate", value: `${60 + Math.round(cvRisk * 0.7)} bpm`, status: cvRisk < 25 ? "Normal" : "Elevated", color: cvRisk < 25 ? "text-accent" : "text-warning" },
-    { icon: Droplet, label: "Blood pressure", value: `${110 + Math.round(cvRisk * 0.5)}/${70 + Math.round(cvRisk * 0.3)}`, status: cvRisk < 30 ? "Optimal" : "Watch", color: cvRisk < 30 ? "text-accent" : "text-warning" },
-    { icon: Activity, label: "Glucose (fasting)", value: `${90 + Math.round(dbRisk * 0.4)} mg/dL`, status: dbRisk < 30 ? "Normal" : "Borderline", color: dbRisk < 30 ? "text-accent" : "text-warning" },
-    { icon: Brain, label: "Stress index", value: wellness > 70 ? "Low" : wellness > 40 ? "Medium" : "High", status: wellness > 70 ? "Good" : "Monitor", color: wellness > 70 ? "text-accent" : "text-warning" },
-  ];
-
-  const risks = [
-    { name: "Cardiovascular", v: cvRisk, level: cvRisk < 25 ? "Low" : cvRisk < 50 ? "Moderate" : "High" },
-    { name: "Diabetes Type 2", v: dbRisk, level: dbRisk < 25 ? "Low" : dbRisk < 50 ? "Moderate" : "High" },
-    { name: "Hypertension", v: hypertension, level: hypertension < 25 ? "Low" : hypertension < 50 ? "Moderate" : "High" },
-    { name: "Respiratory", v: respiratory, level: respiratory < 25 ? "Low" : respiratory < 50 ? "Moderate" : "High" },
-  ];
-
-  const handleViewReport = async () => {
-    setSummaryLoading(true);
-    try {
-      const { data } = await aiApi.healthSummary({
-        cardiovascularRisk: cvRisk,
-        diabetesRisk: dbRisk,
-        wellnessScore: wellness,
-      });
-      setAiSummary(data.summary);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to generate summary.");
-    } finally {
-      setSummaryLoading(false);
-    }
-  };
-
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
+    setAnalysisError(null);
+    setAnalysis(null);
+    setUploadStage("uploading");
+
+    // The upload is a single request/response — the backend doesn't stream
+    // stage events back — so "extracting" / "analyzing" are shown on a
+    // timer rather than pushed from the server. This is still honest:
+    // extraction really is the fast part (well under a second for a
+    // normal-sized report) and "Analyzing with AI..." stays on screen for
+    // the genuinely long part of the wait (Nemotron can take 30-90s+).
+    const toExtracting = setTimeout(() => setUploadStage("extracting"), 300);
+    const toAnalyzing = setTimeout(() => setUploadStage("analyzing"), 1500);
+
     try {
       const { data } = await uploadApi.scanDocument(file);
       toast.success("Report uploaded and analyzed!");
-      // Refresh health report
-      try {
-        const { data: reportData } = await healthApi.getReport();
-        setReport(reportData.report);
-      } catch {}
-      setAiSummary(data.scan?.aiAnalysis || null);
+      if (data.scan?.analysis) {
+        setAnalysis(data.scan.analysis as DocumentAnalysisResult);
+        setAnalysisFileName(data.scan.fileName || file.name);
+      } else {
+        // Structured analysis missing (shouldn't happen on a 201, but
+        // don't silently show nothing).
+        setAnalysisError("The report was processed, but no structured analysis was returned.");
+      }
     } catch (err: any) {
+      setAnalysisError(err.message || "Upload failed.");
       toast.error(err.message || "Upload failed.");
     } finally {
+      clearTimeout(toExtracting);
+      clearTimeout(toAnalyzing);
       setUploading(false);
+      setUploadStage("idle");
       if (fileRef.current) fileRef.current.value = "";
     }
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+    return <LoadingState variant="spinner" className="py-20" />;
   }
+
+  const labResults = analysis?.labResults ?? [];
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-display text-2xl md:text-3xl font-bold">AI Health Report</h1>
-          <p className="text-muted-foreground text-sm mt-1">Powered by your medical history, prescriptions and lab reports.</p>
-        </div>
-        <div>
-          <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleUpload} />
-          <Button className="bg-gradient-primary" onClick={() => fileRef.current?.click()} disabled={uploading}>
-            {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-            {uploading ? "Uploading..." : "Upload new report"}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="AI Health Report"
+        description="Powered by your medical history, prescriptions and lab reports."
+        actions={
+          <>
+            <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={handleUpload} />
+            <Button className="bg-gradient-primary" onClick={() => fileRef.current?.click()} disabled={uploading}>
+              {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+              {uploadStage === "uploading" && "Uploading..."}
+              {uploadStage === "extracting" && "Extracting report..."}
+              {uploadStage === "analyzing" && "Analyzing with AI..."}
+              {uploadStage === "idle" && "Upload new report"}
+            </Button>
+          </>
+        }
+      />
 
       <div className="grid lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-2 p-6">
           <h3 className="font-semibold mb-4">Vitals snapshot</h3>
-          <div className="grid sm:grid-cols-2 gap-4">
-            {vitals.map((v, i) => (
-              <motion.div key={v.label} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}
-                className="p-4 rounded-xl border border-border bg-gradient-card">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 grid place-items-center">
-                    <v.icon className={`w-5 h-5 ${v.color}`} />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">{v.label}</p>
-                    <p className="font-semibold">{v.value}</p>
-                  </div>
-                  <Badge variant="outline" className={`ml-auto ${v.color}`}>{v.status}</Badge>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+          {analysis ? (
+            <div className="grid sm:grid-cols-2 gap-4">
+              {VITAL_DEFS.map((v, i) => {
+                const lab = findVital(labResults, v.match);
+                const status: FindingStatus = lab?.status ?? "unknown";
+                return (
+                  <motion.div key={v.label} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}
+                    className="p-4 rounded-xl border border-border/70 bg-gradient-card">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 grid place-items-center">
+                        <v.icon className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">{v.label}</p>
+                        <p className="font-semibold">
+                          {lab ? `${lab.value}${lab.unit ? ` ${lab.unit}` : ""}` : "Not available in report"}
+                        </p>
+                      </div>
+                      {lab && (
+                        <Badge variant="outline" className={`ml-auto ${statusTone(status)}`}>
+                          {statusLabel(status)}
+                        </Badge>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          ) : (
+            <EmptyState icon={HeartPulse} title="No report analyzed yet" description="Upload a report to see vitals extracted from it." />
+          )}
         </Card>
 
-        <Card className="p-6 bg-gradient-primary text-primary-foreground border-0 relative overflow-hidden">
-          <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
+        <Card className="p-6 bg-gradient-primary text-primary-foreground border-0">
           <ShieldCheck className="w-7 h-7 mb-3" />
-          <p className="text-sm text-primary-foreground/80">Overall wellness score</p>
-          <p className="font-display text-5xl font-bold mt-1">{wellness}<span className="text-2xl text-primary-foreground/70">/100</span></p>
-          <p className="text-xs text-primary-foreground/80 mt-2">
-            {wellness > 80 ? "Excellent! You're healthier than most users." : wellness > 60 ? "Good health. Some areas to improve." : "Needs attention. Please consult a doctor."}
-          </p>
-          <Button
-            className="mt-4 w-full bg-white text-primary hover:bg-white/90"
-            onClick={handleViewReport}
-            disabled={summaryLoading}
-          >
-            {summaryLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating...</> : "View full report"}
-          </Button>
+          <p className="text-sm text-primary-foreground/80">AI risk score</p>
+          {analysis ? (
+            <>
+              <p className="font-display text-5xl font-bold mt-1">
+                {analysis.riskScore.score}
+                <span className="text-2xl text-primary-foreground/70">/100</span>
+              </p>
+              <p className="text-xs text-primary-foreground/80 mt-2 line-clamp-4">{analysis.riskScore.reasoning}</p>
+            </>
+          ) : (
+            <p className="text-sm text-primary-foreground/80 mt-3">Upload a report to get an AI-generated risk score based on its actual contents.</p>
+          )}
         </Card>
       </div>
 
-      {/* AI Summary */}
-      {aiSummary && (
+      {/* Uploaded report analysis — driven by the real PDF extraction +
+          structured Nemotron analysis pipeline (upload.controller.ts /
+          document-analysis.service.ts). */}
+      {(uploadStage !== "idle" || analysis || analysisError) && (
         <Card className="p-6">
-          <h3 className="font-semibold mb-2">🤖 AI Health Summary</h3>
-          <div className="prose prose-sm max-w-none text-muted-foreground whitespace-pre-wrap">{aiSummary}</div>
+          {uploadStage !== "idle" && (
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
+              {uploadStage === "uploading" && "Uploading..."}
+              {uploadStage === "extracting" && "Extracting report..."}
+              {uploadStage === "analyzing" && "Analyzing with AI..."}
+            </div>
+          )}
+
+          {uploadStage === "idle" && analysisError && (
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-destructive mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-destructive">Couldn't analyze this report</p>
+                <p className="text-sm text-muted-foreground mt-0.5">{analysisError}</p>
+              </div>
+            </div>
+          )}
+
+          {uploadStage === "idle" && analysis && !analysisError && (
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Bot className="w-4 h-4 text-primary" /> Report Analysis
+                </h3>
+                <Badge variant="secondary" className="text-xs flex items-center gap-1.5">
+                  <FileText className="w-3 h-3" />
+                  Analysis based on uploaded report{analysisFileName ? `: ${analysisFileName}` : ""}
+                </Badge>
+              </div>
+
+              <p className="text-sm text-muted-foreground">{analysis.documentSummary}</p>
+
+              {(analysis.patientDetails.name !== "unknown" ||
+                analysis.patientDetails.age !== "unknown" ||
+                analysis.patientDetails.sex !== "unknown" ||
+                analysis.patientDetails.reportDate !== "unknown") && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm p-4 rounded-xl border border-border/70 bg-gradient-card">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Name</p>
+                    <p className="font-medium">{analysis.patientDetails.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Age</p>
+                    <p className="font-medium">{analysis.patientDetails.age}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Sex</p>
+                    <p className="font-medium">{analysis.patientDetails.sex}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Report date</p>
+                    <p className="font-medium">{analysis.patientDetails.reportDate}</p>
+                  </div>
+                </div>
+              )}
+
+              {analysis.labResults.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold mb-2">Lab results</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-muted-foreground border-b border-border">
+                          <th className="pb-2 pr-4 font-medium">Test</th>
+                          <th className="pb-2 pr-4 font-medium">Value</th>
+                          <th className="pb-2 pr-4 font-medium">Reference range</th>
+                          <th className="pb-2 font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {analysis.labResults.map((l, i) => (
+                          <tr key={i} className="border-b border-border/50 last:border-0">
+                            <td className="py-2 pr-4">{l.test}</td>
+                            <td className="py-2 pr-4">
+                              {l.value} {l.unit}
+                            </td>
+                            <td className="py-2 pr-4 text-muted-foreground">{l.referenceRange || "—"}</td>
+                            <td className="py-2">
+                              <Badge variant="outline" className={statusTone(l.status)}>
+                                {l.status}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {(analysis.diagnoses.length > 0 || analysis.medications.length > 0) && (
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {analysis.diagnoses.length > 0 && (
+                    <div>
+                      <p className="text-sm font-semibold mb-1">Diagnoses noted</p>
+                      <ul className="text-sm text-muted-foreground list-disc list-inside space-y-0.5">
+                        {analysis.diagnoses.map((d, i) => (
+                          <li key={i}>{d}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {analysis.medications.length > 0 && (
+                    <div>
+                      <p className="text-sm font-semibold mb-1">Medications noted</p>
+                      <ul className="text-sm text-muted-foreground list-disc list-inside space-y-0.5">
+                        {analysis.medications.map((m, i) => (
+                          <li key={i}>{m}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground italic">{analysis.disclaimer}</p>
+            </div>
+          )}
         </Card>
       )}
 
       <Card className="p-6">
-        <h3 className="font-semibold mb-4">Risk assessment</h3>
-        <div className="grid md:grid-cols-2 gap-5">
-          {risks.map((r) => (
-            <div key={r.name}>
-              <div className="flex justify-between text-sm mb-1.5">
-                <span>{r.name}</span>
-                <span className={`font-semibold ${r.level === "Low" ? "text-accent" : r.level === "Moderate" ? "text-warning" : "text-destructive"}`}>
-                  {r.level} ({r.v}%)
-                </span>
-              </div>
-              <Progress value={r.v} className="h-2" />
-            </div>
-          ))}
-        </div>
-        <div className="mt-6 p-4 rounded-xl bg-warning/10 border border-warning/30 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-warning mt-0.5 shrink-0" />
-          <div>
-            <p className="text-sm font-semibold">AI recommendation</p>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {dbRisk > 30
-                ? "Your fasting glucose is borderline. Consider an HbA1c test in the next 30 days. We've matched 3 diabetes-coverage add-ons for your profile."
-                : cvRisk > 30
-                ? "Elevated cardiovascular markers detected. Schedule a cardiac evaluation within 60 days."
-                : "All vitals are within normal range. Keep up the healthy lifestyle! Next checkup recommended in 6 months."}
-            </p>
+        <h3 className="font-semibold mb-4">Key findings & risk assessment</h3>
+        {!analysis ? (
+          <EmptyState icon={ShieldCheck} title="No report analyzed yet" description="Upload a report to see AI-flagged findings and recommendations." />
+        ) : analysis.keyFindings.length === 0 ? (
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-accent/10 border border-accent/30">
+            <CheckCircle2 className="w-5 h-5 text-accent mt-0.5 shrink-0" />
+            <p className="text-sm text-muted-foreground">No abnormal findings were detected in this report.</p>
           </div>
-        </div>
+        ) : (
+          <ul className="space-y-1.5 text-sm">
+            {analysis.keyFindings.map((f, i) => (
+              <li key={i} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border/70 bg-gradient-card">
+                <span>{f.finding}</span>
+                <span className="flex items-center gap-2 shrink-0">
+                  <span className="text-muted-foreground">{f.value}</span>
+                  <Badge variant="outline" className={statusTone(f.status)}>
+                    {statusLabel(f.status)}
+                  </Badge>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {analysis && analysis.recommendations.length > 0 && (
+          <div className="mt-6 p-4 rounded-xl bg-warning/10 border border-warning/30 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-warning mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-semibold">AI recommendations</p>
+              <ul className="text-sm text-muted-foreground mt-1 list-disc list-inside space-y-0.5">
+                {analysis.recommendations.map((r, i) => (
+                  <li key={i}>{r}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   );
