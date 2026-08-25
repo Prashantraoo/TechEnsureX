@@ -1,12 +1,12 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Check, FileText, Search, ShieldCheck, CircleDollarSign, Link2, Loader2 } from "lucide-react";
-import { motion } from "framer-motion";
+import { Link2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { settlementsApi, claimsApi } from "@/lib/api";
-
-const stageIcons = [FileText, Search, ShieldCheck, Check, CircleDollarSign];
+import { PageHeader } from "@/components/shared/PageHeader";
+import { LoadingState } from "@/components/shared/LoadingState";
+import { Timeline, type TimelineStep } from "@/components/shared/Timeline";
 
 export default function Settlement() {
   const [settlements, setSettlements] = useState<any[]>([]);
@@ -45,17 +45,19 @@ export default function Settlement() {
   ];
 
   const stages = hasData ? selected.stages : defaultStages;
+  const timelineSteps: TimelineStep[] = stages.map((s: any) => ({
+    label: s.label,
+    timestamp: s.time !== "—" ? s.time : undefined,
+    state: s.done ? "complete" : s.active ? "current" : "upcoming",
+  }));
 
   if (loading) {
-    return <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+    return <LoadingState variant="spinner" className="py-20" />;
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl md:text-3xl font-bold">Claim Settlement</h1>
-        <p className="text-muted-foreground text-sm mt-1">Real-time, blockchain-verified payout tracking.</p>
-      </div>
+      <PageHeader title="Claim Settlement" description="Real-time, verified payout tracking." />
 
       {/* Claim selector */}
       {claims.length > 0 && (
@@ -94,38 +96,16 @@ export default function Settlement() {
           </Badge>
         </div>
 
-        <div className="mt-8 relative">
-          <div className="absolute left-6 top-6 bottom-6 w-px bg-border" />
-          <div className="space-y-6">
-            {stages.map((s: any, i: number) => {
-              const Icon = stageIcons[i] || FileText;
-              return (
-                <motion.div key={s.label} initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.1 }} className="flex items-start gap-4 relative">
-                  <div className={`w-12 h-12 rounded-full grid place-items-center shrink-0 z-10 ${
-                    s.done ? "bg-gradient-primary text-primary-foreground shadow-glow"
-                    : s.active ? "bg-warning/20 border-2 border-warning text-warning animate-pulse"
-                    : "bg-muted text-muted-foreground"
-                  }`}>
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1 pb-2">
-                    <div className="flex items-center justify-between">
-                      <p className="font-semibold">{s.label}</p>
-                      {s.done && <Check className="w-4 h-4 text-accent" />}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">{s.time}</p>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
+        <div className="mt-8">
+          <Timeline steps={timelineSteps} orientation="horizontal" />
         </div>
 
         <div className="mt-6 p-4 rounded-xl bg-primary/5 border border-primary/20">
-          <p className="text-sm font-semibold text-primary">🔗 Blockchain audit trail</p>
+          <p className="text-sm font-semibold text-primary flex items-center gap-2">
+            <Link2 className="w-3.5 h-3.5" /> Secure audit trail
+          </p>
           <p className="text-xs text-muted-foreground mt-1 font-mono break-all">
-            tx: {selected?.blockchainTxHash || "0x" + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join("")}
+            {selected?.blockchainTxHash ? `ref: ${selected.blockchainTxHash}` : "Not yet recorded — this settlement hasn't been verified."}
           </p>
         </div>
       </Card>

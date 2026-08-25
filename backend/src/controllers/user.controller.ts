@@ -1,8 +1,8 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { User } from "../models/User.js";
 
 // GET /api/users/profile
-export async function getProfile(req: Request, res: Response): Promise<void> {
+export async function getProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const user = await User.findById(req.user!._id);
     if (!user) {
@@ -19,15 +19,16 @@ export async function getProfile(req: Request, res: Response): Promise<void> {
         createdAt: user.createdAt,
       },
     });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
+  } catch (error) {
+    next(error);
   }
 }
 
 // PUT /api/users/profile
 export async function updateProfile(
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ): Promise<void> {
   try {
     const { name, email } = req.body;
@@ -52,7 +53,7 @@ export async function updateProfile(
         role: user.role,
       },
     });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
+  } catch (error) {
+    next(error);
   }
 }

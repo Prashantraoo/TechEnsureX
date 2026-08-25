@@ -14,7 +14,7 @@ const features = [
   { icon: FileSearch, title: "Policy Recommender", desc: "Compare 200+ plans tailored to your history." },
   { icon: FileScan, title: "Document Scanner", desc: "OCR + AI extracts data from prescriptions." },
   { icon: MessageSquare, title: "AI Assistant", desc: "24/7 chatbot for claims and coverage." },
-  { icon: ListChecks, title: "Claim Tracking", desc: "Real-time blockchain-verified status." },
+  { icon: ListChecks, title: "Claim Tracking", desc: "Real-time claim status updates." },
 ];
 
 export default function Features() {
@@ -22,12 +22,6 @@ export default function Features() {
     <section id="features" className="py-28 relative overflow-hidden">
       <div className="container relative">
         <div className="max-w-3xl mx-auto text-center mb-20">
-          <motion.span
-            initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-            className="inline-block text-xs font-bold tracking-[0.25em] text-primary uppercase mb-4"
-          >
-            ◆ Capabilities
-          </motion.span>
           <motion.h2
             initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
             transition={{ duration: 0.7 }}
@@ -45,20 +39,21 @@ export default function Features() {
           </motion.p>
         </div>
 
-        {/* Bento grid */}
-        <div className="grid lg:grid-cols-4 lg:grid-rows-3 gap-4 lg:h-[640px]">
+        {/* Bento grid — rows are content-sized (no fixed total height), so the
+            featured tile's text can never get clipped, and the 9 remaining
+            tiles (which don't divide evenly into the featured tile's leftover
+            cells) simply flow onto as many rows as they need instead of
+            overflowing a hard-capped container. */}
+        <div className="grid lg:grid-cols-4 gap-4">
           {/* Featured tile */}
           <motion.div
             initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
             transition={{ duration: 0.6 }}
             whileHover={{ y: -4 }}
-            className="lg:col-span-2 lg:row-span-2 relative rounded-3xl bg-foreground text-background p-8 lg:p-10 overflow-hidden group cursor-pointer"
+            className="lg:col-span-2 lg:row-span-2 min-h-[420px] relative rounded-3xl bg-foreground text-background p-8 lg:p-10 overflow-hidden group cursor-pointer"
           >
-            <div className="absolute inset-0 bg-gradient-vibrant opacity-90" />
-            <div className="absolute inset-0 bg-grid opacity-20" />
-            <div className="absolute -bottom-20 -right-20 w-72 h-72 bg-white/10 rounded-full blur-3xl" />
             <div className="relative h-full flex flex-col">
-              <div className="w-14 h-14 rounded-2xl glass grid place-items-center mb-6">
+              <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/10 grid place-items-center mb-6">
                 <Brain className="w-7 h-7 text-white" />
               </div>
               <h3 className="display-text text-3xl lg:text-4xl font-bold leading-tight">
@@ -87,7 +82,7 @@ export default function Features() {
               viewport={{ once: true, margin: "-50px" }}
               transition={{ duration: 0.5, delay: 0.05 + (i % 4) * 0.05 }}
               whileHover={{ y: -4 }}
-              className="group relative bg-gradient-card border border-border rounded-2xl p-5 shadow-soft hover:shadow-card transition-all duration-300 cursor-pointer overflow-hidden"
+              className="group relative bg-gradient-card border border-border/70 rounded-2xl p-5 shadow-soft hover:shadow-card transition-all duration-300 cursor-pointer overflow-hidden"
             >
               <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-primary scale-x-0 group-hover:scale-x-100 origin-left transition-transform duration-500" />
               <div className="flex items-start justify-between mb-3">

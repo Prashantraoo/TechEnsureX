@@ -3,7 +3,7 @@ import Hero from "@/components/site/Hero";
 import Features from "@/components/site/Features";
 import About from "@/components/site/About";
 import HowItWorks from "@/components/site/HowItWorks";
-import Blockchain from "@/components/site/Blockchain";
+import Security from "@/components/site/Security";
 import Stats from "@/components/site/Stats";
 import Testimonials from "@/components/site/Testimonials";
 import Pricing from "@/components/site/Pricing";
@@ -19,7 +19,7 @@ const Index = () => {
         <Hero />
         <Features />
         <HowItWorks />
-        <Blockchain />
+        <Security />
         <About />
         <Stats />
         <Testimonials />

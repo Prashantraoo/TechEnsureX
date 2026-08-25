@@ -1,4 +1,4 @@
-// ─── HealthGuard AI — Auth Utilities ────────────────────
+// ─── TechEnsureX — Auth Utilities ───────────────────────
 // Helper functions for authentication state management.
 
 import { authApi, setToken, removeToken, getToken } from "./api";

@@ -19,6 +19,7 @@ import adminRoutes from "./routes/admin.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
 import uploadRoutes from "./routes/upload.routes.js";
 import medicalHistoryRoutes from "./routes/medical-history.routes.js";
+import { indexInsurancePlans } from "./services/rag.service.js";
 
 const app = express();
 
@@ -58,7 +59,7 @@ app.use("/api/medical-history", medicalHistoryRoutes);
 app.get("/api/health", (_req, res) => {
   res.json({
     status: "ok",
-    service: "HealthGuard AI Backend",
+    service: "TechEnsureX Backend",
     timestamp: new Date().toISOString(),
   });
 });
@@ -78,12 +79,20 @@ async function start() {
   app.listen(env.PORT, () => {
     console.log(`
 ╔══════════════════════════════════════════════╗
-║   🏥 HealthGuard AI Backend                  ║
+║   🏥 TechEnsureX Backend                     ║
 ║   🚀 Running on http://localhost:${env.PORT}        ║
 ║   📦 Environment: ${env.NODE_ENV.padEnd(22)}  ║
 ╚══════════════════════════════════════════════╝
     `);
   });
+
+  // Fire-and-forget: (re)builds the RAG vector store for insurance-plan
+  // Q&A. Runs after listen() so it never delays the server coming up —
+  // retrieval just returns [] (falls back to ungrounded chat) until this
+  // finishes, which takes a few seconds at the current plan count.
+  indexInsurancePlans()
+    .then(({ plans, chunks }) => console.log(`[RAG] Indexed ${plans} insurance plan(s) into ${chunks} chunk(s).`))
+    .catch((err) => console.error("[RAG] Initial indexing failed (chat will run without policy grounding):", err?.message ?? err));
 }
 
 start().catch(console.error);

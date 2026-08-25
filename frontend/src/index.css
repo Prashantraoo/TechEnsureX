@@ -2,150 +2,246 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Typography scale (convention, enforced via PageHeader/SectionHeader) ───
+   Display  text-5xl/6xl font-bold tracking-tight   — hero only, once per page
+   H1       text-2xl/3xl font-bold tracking-tight    — page title
+   H2       text-xl/2xl font-semibold                — section title
+   H3       text-base/lg font-semibold               — card/subsection title
+   Body     text-sm/base                             — default copy
+   Small    text-sm text-muted-foreground             — secondary copy
+   Caption  text-xs text-muted-foreground             — metadata, timestamps
+   Label    text-xs font-medium uppercase tracking-wide — eyebrows, form labels
+   ────────────────────────────────────────────────────────────────────────── */
+
 @layer base {
   :root {
-    --background: 210 40% 99%;
-    --foreground: 222 47% 11%;
+    /* ─── Quiet-luxury enterprise SaaS palette ───
+       Background #F8FAFC · Surface #FFFFFF · Primary #2563EB
+       Healthcare accent #14B8A6 · Text #172033 · Secondary text #64748B
+       Border #E7ECF2 · Success #16A34A · Warning #D97706 · Danger #DC2626 */
+    --background: 210 40% 98%;
+    --foreground: 221 38% 14%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 221 38% 14%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 221 38% 14%;
 
-    /* Brand: deep electric blue */
+    /* Brand: confident, unambiguous blue — used for primary actions and the
+       one active-state indicator, never as a decorative fill */
     --primary: 221 83% 53%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 199 100% 65%;
+    --primary-glow: 217 91% 60%;
 
-    /* Healthcare teal */
-    --secondary: 178 78% 41%;
+    /* Healthcare accent teal */
+    --secondary: 173 80% 40%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 210 40% 96.5%;
+    --muted: 210 33% 96%;
     --muted-foreground: 215 16% 47%;
 
-    /* Wellness emerald */
-    --accent: 158 64% 42%;
+    --accent: 173 80% 40%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 158 64% 42%;
-    --warning: 35 100% 55%;
+    --success: 142 76% 36%;
+    --warning: 32 95% 44%;
+    /* Informational — same hue family as primary, kept distinguishable from the brand blue itself */
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
+    --border: 213 30% 91%;
+    --input: 213 30% 91%;
     --ring: 221 83% 53%;
 
-    --radius: 0.875rem;
+    /* Restrained radius — reads as a mature product, not a rounded "AI
+       dashboard template". Cascades sitewide via tailwind.config.ts. */
+    --radius: 0.75rem;
 
-    /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(221 83% 53%) 0%, hsl(199 100% 60%) 100%);
-    --gradient-vibrant: linear-gradient(135deg, hsl(221 83% 53%) 0%, hsl(178 78% 45%) 50%, hsl(158 64% 50%) 100%);
-    --gradient-hero: linear-gradient(180deg, hsl(210 100% 99%) 0%, hsl(200 80% 97%) 60%, hsl(178 60% 96%) 100%);
-    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(210 40% 98.5%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(178 78% 45%), hsl(158 64% 50%));
-    --gradient-radial: radial-gradient(circle at center, hsl(221 83% 53% / 0.15), transparent 70%);
-    --gradient-mesh: radial-gradient(at 15% 15%, hsl(221 90% 88% / 0.55) 0px, transparent 45%),
-                     radial-gradient(at 85% 10%, hsl(178 80% 85% / 0.5) 0px, transparent 45%),
-                     radial-gradient(at 75% 80%, hsl(158 70% 88% / 0.55) 0px, transparent 45%),
-                     radial-gradient(at 20% 85%, hsl(35 100% 88% / 0.35) 0px, transparent 45%);
+    /* Gradients — used sparingly and only where they carry real meaning
+       (primary CTA, brand mark on marketing pages). Never applied to
+       dashboard cards, uploads, or "AI" surfaces — those stay flat. */
+    --gradient-primary: linear-gradient(135deg, hsl(221 83% 53%) 0%, hsl(217 91% 60%) 100%);
+    --gradient-hero: linear-gradient(180deg, hsl(210 45% 98%) 0%, hsl(210 40% 98%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(210 33% 98%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(173 80% 42%), hsl(173 70% 50%));
+    --gradient-ambient: linear-gradient(135deg, hsl(221 83% 53% / 0.06) 0%, hsl(173 80% 40% / 0.05) 100%);
 
-    /* Shadows */
-    --shadow-soft: 0 2px 8px -2px hsl(215 30% 30% / 0.06), 0 4px 16px -4px hsl(215 30% 30% / 0.06);
-    --shadow-card: 0 4px 24px -8px hsl(211 80% 30% / 0.08), 0 2px 8px -2px hsl(215 30% 30% / 0.04);
-    --shadow-elevated: 0 20px 50px -20px hsl(211 80% 30% / 0.18), 0 8px 24px -8px hsl(215 30% 30% / 0.1);
-    --shadow-glow: 0 0 40px hsl(211 100% 60% / 0.25);
+    /* Shadows — extremely subtle. A quiet-luxury surface reads through a
+       hairline border first and a soft, low-contrast shadow second, never
+       a heavy drop shadow. --shadow-glow stays reserved for marketing use
+       only — it is not used anywhere in the dashboard. */
+    --shadow-soft: 0 1px 2px hsl(221 39% 20% / 0.04), 0 2px 8px -2px hsl(221 39% 20% / 0.04);
+    --shadow-card: 0 1px 3px hsl(221 39% 20% / 0.05), 0 4px 16px -6px hsl(221 39% 20% / 0.06);
+    --shadow-hover: 0 4px 12px -2px hsl(221 39% 20% / 0.08), 0 8px 24px -8px hsl(221 39% 20% / 0.07);
+    --shadow-elevated: 0 12px 32px -12px hsl(221 39% 20% / 0.14), 0 4px 16px -6px hsl(221 39% 20% / 0.08);
+    --shadow-glow: 0 12px 40px -12px hsl(221 83% 53% / 0.35), 0 4px 14px -6px hsl(221 83% 53% / 0.2);
 
     /* Transitions */
     --transition-smooth: cubic-bezier(0.4, 0, 0.2, 1);
     --transition-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
+    /* Sidebar now follows the same light "quiet luxury" surface as the rest
+       of the app — a white panel with a hairline border, not a fixed dark
+       command rail. It still tracks the theme toggle like every other
+       surface (redefined again under .dark below). Active state uses a
+       soft tinted background + brand-blue text, never a solid pill. */
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 215 25% 25%;
-    --sidebar-primary: 211 100% 45%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 40% 96%;
-    --sidebar-accent-foreground: 211 100% 45%;
-    --sidebar-border: 214 30% 91%;
-    --sidebar-ring: 211 100% 45%;
+    --sidebar-foreground: 221 38% 14%;
+    --sidebar-primary: 214 100% 97%;
+    --sidebar-primary-foreground: 221 83% 53%;
+    --sidebar-accent: 210 33% 96%;
+    --sidebar-accent-foreground: 221 38% 14%;
+    --sidebar-border: 213 30% 91%;
+    --sidebar-ring: 221 83% 53%;
+
+    /* Glass surfaces (theme-aware; overridden again in .dark) */
+    --glass-bg: 0 0% 100%;
+    --glass-bg-strong: 0 0% 100%;
+
+    --noise-opacity: 0.025;
   }
 
+  /* ─── Dark mode — the same quiet-luxury system on a muted charcoal
+     canvas, not a separate "cinematic" identity. Restrained saturation,
+     no neon glow, same semantic colors as light mode. ─────────────── */
   .dark {
-    --background: 215 35% 8%;
-    --foreground: 210 40% 98%;
-    --card: 215 30% 11%;
-    --card-foreground: 210 40% 98%;
-    --popover: 215 30% 11%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 199 95% 60%;
-    --primary-foreground: 215 35% 8%;
-    --secondary: 175 70% 41%;
-    --secondary-foreground: 0 0% 100%;
-    --muted: 215 25% 16%;
-    --muted-foreground: 215 16% 65%;
-    --accent: 152 65% 45%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 62% 45%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 215 25% 18%;
-    --input: 215 25% 18%;
-    --ring: 199 95% 60%;
-    --sidebar-background: 215 35% 10%;
-    --sidebar-foreground: 210 40% 92%;
-    --sidebar-primary: 199 95% 60%;
-    --sidebar-primary-foreground: 215 35% 8%;
-    --sidebar-accent: 215 25% 16%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 215 25% 18%;
-    --sidebar-ring: 199 95% 60%;
+    --background: 222 28% 7%;
+    --foreground: 210 25% 94%;
+    --card: 222 24% 10%;
+    --card-foreground: 210 25% 94%;
+    --popover: 222 24% 9%;
+    --popover-foreground: 210 25% 94%;
+
+    --primary: 217 91% 62%;
+    --primary-foreground: 222 28% 7%;
+    --primary-glow: 217 91% 66%;
+
+    --secondary: 173 70% 46%;
+    --secondary-foreground: 222 28% 7%;
+
+    --muted: 222 20% 14%;
+    --muted-foreground: 216 14% 65%;
+
+    --accent: 173 70% 46%;
+    --accent-foreground: 222 28% 7%;
+
+    --destructive: 0 68% 58%;
+    --destructive-foreground: 210 25% 94%;
+
+    --success: 142 60% 48%;
+    --warning: 32 90% 54%;
+    --info: 199 89% 58%;
+    --info-foreground: 222 28% 7%;
+
+    --border: 222 18% 18%;
+    --input: 222 18% 16%;
+    --ring: 217 91% 62%;
+
+    /* Sidebar follows the same dark surface as the rest of the app — a
+       near-card charcoal panel with a hairline border, the same structural
+       role the white panel plays in light mode. Active state keeps the
+       same "tinted background, brand-blue text" language, just darker. */
+    --sidebar-background: 222 24% 10%;
+    --sidebar-foreground: 210 25% 94%;
+    --sidebar-primary: 217 60% 18%;
+    --sidebar-primary-foreground: 217 91% 70%;
+    --sidebar-accent: 222 20% 15%;
+    --sidebar-accent-foreground: 210 25% 94%;
+    --sidebar-border: 222 18% 18%;
+    --sidebar-ring: 217 91% 62%;
+
+    --glass-bg: 222 24% 11%;
+    --glass-bg-strong: 222 26% 9%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(217 91% 62%) 0%, hsl(199 90% 60%) 100%);
+    --gradient-hero: radial-gradient(ellipse 90% 60% at 50% -10%, hsl(217 50% 16% / 0.35) 0%, transparent 60%),
+                     linear-gradient(180deg, hsl(222 28% 7%) 0%, hsl(222 26% 8%) 45%, hsl(222 28% 6%) 100%);
+    --gradient-card: linear-gradient(155deg, hsl(222 24% 11%) 0%, hsl(222 26% 9%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(173 70% 40%), hsl(173 60% 48%));
+
+    --shadow-soft: 0 1px 3px hsl(0 0% 0% / 0.3), 0 2px 10px -2px hsl(0 0% 0% / 0.25);
+    --shadow-card: 0 2px 8px -2px hsl(0 0% 0% / 0.4), 0 6px 20px -8px hsl(0 0% 0% / 0.3);
+    --shadow-hover: 0 6px 20px -6px hsl(0 0% 0% / 0.5), 0 4px 14px -4px hsl(217 91% 62% / 0.1);
+    --shadow-elevated: 0 20px 44px -18px hsl(0 0% 0% / 0.6), 0 8px 24px -10px hsl(0 0% 0% / 0.4);
+    --shadow-glow: 0 16px 48px -14px hsl(217 91% 62% / 0.4), 0 4px 16px -6px hsl(217 91% 62% / 0.22);
+
+    --noise-opacity: 0.05;
   }
 }
 
 @layer base {
   * { @apply border-border; }
-  html { scroll-behavior: smooth; }
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01";
     font-family: 'Inter', system-ui, sans-serif;
   }
-  ::selection { background: hsl(var(--primary) / 0.2); color: hsl(var(--primary)); }
+  ::selection { background: hsl(var(--primary) / 0.3); color: hsl(var(--primary-foreground)); }
+
+  /* Scrollbar — themed to match light/dark palette instead of the OS default */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+  }
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 999px;
+    border: 2px solid hsl(var(--background));
+  }
+  *::-webkit-scrollbar-thumb:hover { background-color: hsl(var(--muted-foreground) / 0.5); }
+
+  /* SplitText line wrappers must clip so words can rise up through a mask */
+  .split-line { overflow: hidden; padding-bottom: 0.08em; }
+
+  /* Respect the user's OS-level motion preference everywhere, including
+     Framer Motion/GSAP-driven transforms that don't go through Tailwind's
+     `animate-*` utilities. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer utilities {
   .bg-gradient-primary { background: var(--gradient-primary); }
-  .bg-gradient-vibrant { background: var(--gradient-vibrant); background-size: 200% 200%; }
   .bg-gradient-hero { background: var(--gradient-hero); }
   .bg-gradient-card { background: var(--gradient-card); }
   .bg-gradient-accent { background: var(--gradient-accent); }
-  .bg-gradient-mesh { background-image: var(--gradient-mesh); }
-  .bg-gradient-radial { background-image: var(--gradient-radial); }
+  .bg-gradient-ambient { background: var(--gradient-ambient); }
 
+  /* Static only — no animated rainbow text gradient. Use once per page, max,
+     for a single word that needs emphasis (e.g. a hero headline). */
   .text-gradient-primary {
     background: var(--gradient-primary);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
   }
-  .text-gradient-vibrant {
-    background: var(--gradient-vibrant);
-    background-size: 200% 200%;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: gradient-shift 6s ease infinite;
-  }
 
   .shadow-soft { box-shadow: var(--shadow-soft); }
   .shadow-card { box-shadow: var(--shadow-card); }
+  .shadow-hover { box-shadow: var(--shadow-hover); }
   .shadow-elevated { box-shadow: var(--shadow-elevated); }
+  /* Reserved for the one or two "AI/primary" moments per page — never
+     default card chrome. That was the exact anti-pattern removed earlier;
+     it only earns its way back on something genuinely singular. */
   .shadow-glow { box-shadow: var(--shadow-glow); }
 
-  .glass { @apply bg-white/60 backdrop-blur-xl border border-white/50; }
-  .glass-strong { @apply bg-white/80 backdrop-blur-2xl border border-white/60; }
+  /* Glass surfaces: reserve for one true "floating over content" surface per
+     screen (e.g. a scrolled sticky nav or command palette) — not default
+     card/header chrome. */
+  .glass { background: hsl(var(--glass-bg) / 0.6); @apply backdrop-blur-xl border border-border/50; }
+  .glass-strong { background: hsl(var(--glass-bg-strong) / 0.8); @apply backdrop-blur-2xl border border-border/60; }
   .glass-dark { @apply bg-card/70 backdrop-blur-xl border border-border; }
 
   .hover-lift {
@@ -156,6 +252,17 @@
     box-shadow: var(--shadow-elevated);
   }
 
+  /* Lighter-weight interactive-card hover for the common case (table rows,
+     stat tiles, secondary panels) — hover-lift's 6px translate is for
+     marketing feature cards, not dashboard density. */
+  .hover-card {
+    transition: box-shadow 200ms var(--transition-smooth), border-color 200ms var(--transition-smooth);
+  }
+  .hover-card:hover {
+    box-shadow: var(--shadow-hover);
+    border-color: hsl(var(--primary) / 0.25);
+  }
+
   .bg-grid {
     background-image:
       linear-gradient(to right, hsl(var(--border) / 0.6) 1px, transparent 1px),
@@ -163,6 +270,20 @@
     background-size: 56px 56px;
     -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%);
             mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%);
+  }
+
+  /* Subtle film-grain overlay for cinematic depth on dark hero/CTA sections */
+  .bg-noise {
+    position: relative;
+  }
+  .bg-noise::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: var(--noise-opacity);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
   }
 
   .marquee {
@@ -190,6 +311,17 @@
     font-style: italic;
     font-weight: 400;
     letter-spacing: -0.02em;
+  }
+
+  /* Dramatic, higher-contrast editorial serif — deliberately a different
+     face from .font-serif-italic above, reserved for the authentication
+     pages' headline accent line so it reads as a considered typographic
+     choice rather than the same italic reused everywhere. */
+  .font-editorial-italic {
+    font-family: 'DM Serif Display', 'Instrument Serif', Georgia, serif;
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.01em;
   }
 }
 

@@ -1,87 +1,155 @@
-// ─── HealthGuard AI — OpenRouter AI Service ─────────────
-// Wraps OpenRouter API for chat, document analysis, and health summaries.
+// ─── TechEnsureX AI Service — Chat + Health Summary ─────
+// Document analysis lives in document-analysis.service.ts, claim
+// analysis in claim-analysis.service.ts, retrieval in rag.service.ts —
+// each with its own task-specific prompt rather than one shared giant
+// prompt. This file owns the two chat-shaped features: the AI Chat
+// Assistant and the numeric health-report summary.
 
-import { env } from "../config/env.js";
-
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-
-interface ChatMessage {
-  role: "system" | "user" | "assistant";
-  content: string;
-}
-
-async function callOpenRouter(
-  messages: ChatMessage[],
-  model = "meta-llama/llama-4-maverick"
-): Promise<string> {
-  const res = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": env.FRONTEND_URL,
-      "X-Title": "HealthGuard AI",
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      max_tokens: 1024,
-      temperature: 0.7,
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    console.error("OpenRouter error:", res.status, err);
-    throw new Error(`AI service error: ${res.status}`);
-  }
-
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content || "I couldn't generate a response. Please try again.";
-}
+import {
+  streamChatDeltas,
+  MODELS,
+  AiServiceError,
+  TECHENSUREX_SYSTEM_PROMPT,
+  type ChatMessage,
+} from "./nvidia.js";
+import { DocumentScan } from "../models/DocumentScan.js";
+import { formatAnalysisAsContext, type DocumentAnalysisResult } from "./document-analysis.service.js";
+import { retrieveRelevantChunks, formatRetrievedContext } from "./rag.service.js";
 
 // ─── Chat Completion ────────────────────────────────────
-export async function chatCompletion(messages: ChatMessage[]): Promise<string> {
-  const systemMsg: ChatMessage = {
-    role: "system",
-    content: `You are EnsureAI, an expert AI insurance and healthcare assistant for TechEnsureX — an Indian medical insurance platform. You help users with:
-- Insurance claims, policies, and coverage questions
-- Finding cashless hospitals and plan comparisons
-- Understanding medical bills and deductibles
-- Health risk assessments and wellness tips
-Be concise, helpful, and friendly. Use Indian Rupee (₹) for amounts. If you don't know something specific about a user's account, say so honestly.`,
-  };
+// Only the most recent turns are sent as context — a chat that's been
+// going for a while doesn't need its entire history replayed to the
+// model on every message. The UI still shows the full conversation;
+// this only trims what's sent to the API.
+const MAX_HISTORY_MESSAGES = 10;
 
-  return callOpenRouter([systemMsg, ...messages]);
+function trimHistory(messages: ChatMessage[]): ChatMessage[] {
+  const systemMsgs = messages.filter((m) => m.role === "system");
+  const nonSystem = messages.filter((m) => m.role !== "system");
+  return [...systemMsgs, ...nonSystem.slice(-MAX_HISTORY_MESSAGES)];
 }
 
-// ─── Document Analysis ──────────────────────────────────
-export async function analyzeDocument(
-  extractedText: string,
-  fileName: string
-): Promise<string> {
-  const messages: ChatMessage[] = [
-    {
-      role: "system",
-      content: `You are an AI medical document analyzer for TechEnsureX insurance platform. Analyze the uploaded medical document and provide:
-1. **Document Summary** — what kind of document this is
-2. **Key Line Items** — extracted charges, procedures, medications
-3. **Risk Score** (0-100) — likelihood of fraud or discrepancy
-4. **Coverage Match** — how well this aligns with standard insurance coverage
-5. **Recommendations** — next steps for the user
+// NOTE on NIM_SAFETY_MODEL (nvidia/nemotron-3.5-content-safety): tested
+// live against this platform's actual traffic (see checkSafety in
+// nvidia.ts) and found NOT fit to gate ordinary chat here. It classifies
+// any message naming a specific clinical value — "What is my HbA1c?",
+// "What is the patient's blood pressure?" — as unsafe regardless of
+// phrasing (first-person, third-person, with or without added context),
+// evidently treating any factual medical-value question as
+// "specialized medical advice" territory. Since answering exactly these
+// questions from a user's own uploaded report is this product's core
+// feature, wiring it in as a hard pre-filter would block legitimate use
+// on every single health-report follow-up. It is deliberately NOT used
+// as a blocking gate. Actual safety behavior (never diagnose or
+// prescribe, never claim certainty the document doesn't support, always
+// suggest professional review) is enforced at the prompt level instead —
+// see TECHENSUREX_SYSTEM_PROMPT in nvidia.ts and the task-specific
+// prompts in document-analysis.service.ts / claim-analysis.service.ts —
+// which is both more accurate for this domain and doesn't cost an extra
+// NIM call on every message.
+/**
+ * Streams the chat reply via onDelta as chunks arrive (see nvidia.ts's
+ * streamChatDeltas). Uses the FAST chat model (see nvidia.ts's MODELS) —
+ * ordinary questions never touch the slow reasoning model. Grounds the
+ * answer in two optional, best-effort sources when relevant:
+ *   - the user's most recently uploaded report (so "what's my HbA1c?"
+ *     works as a chat follow-up, not just at upload time)
+ *   - retrieved insurance-plan chunks (RAG — see rag.service.ts)
+ * Both are fetched in parallel and fail silently: grounding is an
+ * enhancement, chat must still work if retrieval has a hiccup.
+ */
+export async function chatCompletion(
+  messages: ChatMessage[],
+  userId: string,
+  onDelta: (text: string) => void
+): Promise<void> {
+  const trimmed = trimHistory(messages);
+  const lastUserMessage = [...trimmed].reverse().find((m) => m.role === "user")?.content ?? "";
 
-Format your response with clear sections using markdown. Use ₹ for amounts.`,
-    },
-    {
-      role: "user",
-      content: `Analyze this medical document (filename: ${fileName}):\n\n${extractedText}`,
-    },
-  ];
+  const [docContext, policyChunks] = await Promise.all([
+    getRecentDocumentContext(userId).catch(() => null),
+    lastUserMessage ? retrieveRelevantChunks(lastUserMessage).catch(() => []) : Promise.resolve([]),
+  ]);
 
-  return callOpenRouter(messages);
+  const finalMessages = withGroundingContext(trimmed, docContext, policyChunks);
+  await streamWithBoundedRetry(finalMessages, onDelta);
+}
+
+// Always keeps the TechEnsureX persona/base instructions in force — the
+// grounding block (when present) is appended to it, never substituted
+// for it. Passing only the grounding message as the sole system message
+// was an earlier bug here: nvidia.ts only auto-adds the persona prompt
+// when a call has NO system message at all, so a grounding-only message
+// silently dropped the persona and its "explain concepts using general
+// knowledge" instruction — causing the model to over-refuse ordinary
+// questions ("what's a deductible?") as if nothing was ever grounded.
+function withGroundingContext(
+  messages: ChatMessage[],
+  docContext: string | null,
+  policyChunks: Awaited<ReturnType<typeof retrieveRelevantChunks>>
+): ChatMessage[] {
+  const parts: string[] = [];
+  if (docContext) parts.push(`The user recently uploaded this report:\n${docContext}`);
+  if (policyChunks.length) {
+    parts.push(
+      `Relevant policy information retrieved for this question:\n${formatRetrievedContext(policyChunks)}\n\nWhen you use this, say "According to your policy document..." and name the plan it came from.`
+    );
+  }
+
+  let systemContent = TECHENSUREX_SYSTEM_PROMPT;
+  if (parts.length > 0) {
+    systemContent += `\n\n---\nAdditional context for this conversation — use it only if actually relevant to the user's current question. It supplements, but never replaces, your ability to explain general insurance concepts from your own knowledge. If specific information (e.g. a number from the user's own report or policy) isn't in this context, this conversation, or general knowledge, say you don't have that information rather than guessing.\n\n${parts.join("\n\n")}`;
+  }
+
+  const priorSystemMsgs = messages.filter((m) => m.role === "system");
+  const nonSystem = messages.filter((m) => m.role !== "system");
+  return [{ role: "system", content: systemContent }, ...priorSystemMsgs, ...nonSystem];
+}
+
+async function getRecentDocumentContext(userId: string): Promise<string | null> {
+  const scan = await DocumentScan.findOne({ userId }).sort({ createdAt: -1 }).lean();
+  if (!scan?.analysis) return null;
+  return formatAnalysisAsContext(scan.analysis as unknown as DocumentAnalysisResult, scan.fileName);
+}
+
+// Limited backoff, not endless retry: one retry, and only for the two
+// error classes that are genuinely worth retrying — a dropped
+// connection before any content arrived, or a 429/503 "busy" response
+// (brief pause, then one more attempt, per the product spec's "attempt
+// 1, wait briefly, attempt 2, then friendly message" pattern). A plain
+// "timeout" (the model IS responding, just slowly) is never retried —
+// that would just double an already-long wait. onDelta can't have fired
+// yet on either retried path, so retrying can't duplicate output already
+// sent to the client.
+async function streamWithBoundedRetry(
+  messages: ChatMessage[],
+  onDelta: (text: string) => void
+): Promise<void> {
+  try {
+    await streamChatDeltas(messages, { model: MODELS.chat, maxTokens: 700 }, onDelta);
+  } catch (error) {
+    if (error instanceof AiServiceError && (error.code === "network_error" || error.code === "rate_limited")) {
+      const backoffMs = error.code === "rate_limited" ? 800 : 0;
+      console.warn(`[AI] ${error.code} before any content arrived — retrying once${backoffMs ? ` after ${backoffMs}ms` : ""}.`);
+      if (backoffMs) await new Promise((resolve) => setTimeout(resolve, backoffMs));
+      await streamChatDeltas(messages, { model: MODELS.chat, maxTokens: 700 }, onDelta);
+      return;
+    }
+    throw error;
+  }
 }
 
 // ─── Health Report Summary ──────────────────────────────
+const HEALTH_SUMMARY_SYSTEM_PROMPT = `detailed thinking off
+
+You are EnsureAI's health report mode for TechEnsureX. Based on the user's health data, provide:
+1. **Overall Assessment** — brief health status summary
+2. **Risk Analysis** — explain each risk factor supplied
+3. **General Observations** — patterns worth being aware of, clearly framed as general information, not a diagnosis
+4. **Insurance Implications** — how this generally relates to coverage needs
+
+Be empathetic, professional, and specific to the numbers given. Do not diagnose conditions or prescribe treatment — recommend a doctor or specialist for anything clinical. Use Indian context for hospitals and treatments where relevant. Keep each section to 2-3 sentences.`;
+
 export async function summarizeHealthReport(reportData: {
   cardiovascularRisk: number;
   diabetesRisk: number;
@@ -89,21 +157,12 @@ export async function summarizeHealthReport(reportData: {
   vitals?: Record<string, string>;
 }): Promise<string> {
   const messages: ChatMessage[] = [
-    {
-      role: "system",
-      content: `You are an AI health analyst for TechEnsureX. Based on the user's health data, provide:
-1. **Overall Assessment** — brief health status summary
-2. **Risk Analysis** — explain each risk factor
-3. **Personalized Recommendations** — actionable steps
-4. **Insurance Implications** — how this affects their coverage needs
-
-Be empathetic, professional, and specific. Use Indian context for hospitals and treatments.`,
-    },
+    { role: "system", content: HEALTH_SUMMARY_SYSTEM_PROMPT },
     {
       role: "user",
       content: `My health report data:
 - Cardiovascular Risk: ${reportData.cardiovascularRisk}%
-- Diabetes Risk: ${reportData.diabetesRisk}%  
+- Diabetes Risk: ${reportData.diabetesRisk}%
 - Wellness Score: ${reportData.wellnessScore}/100
 ${reportData.vitals ? `- Vitals: ${JSON.stringify(reportData.vitals)}` : ""}
 
@@ -111,5 +170,11 @@ Please analyze and provide recommendations.`,
     },
   ];
 
-  return callOpenRouter(messages);
+  // A 4-section summary from a handful of numbers doesn't need the
+  // reasoning model — the fast chat model handles this well and quickly.
+  let content = "";
+  await streamChatDeltas(messages, { model: MODELS.chat, maxTokens: 500, temperature: 0.5 }, (delta) => {
+    content += delta;
+  });
+  return content;
 }

@@ -5,6 +5,7 @@ import {
   createClaim,
   getClaimById,
   updateClaimStatus,
+  analyzeClaimById,
 } from "../controllers/claims.controller.js";
 import { authenticate } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
@@ -30,6 +31,9 @@ router.post(
 
 // GET /api/claims/:id
 router.get("/:id", getClaimById);
+
+// POST /api/claims/:id/analyze — AI-assist summary/explanation (advisory only)
+router.post("/:id/analyze", analyzeClaimById);
 
 // PUT /api/claims/:id
 router.put(

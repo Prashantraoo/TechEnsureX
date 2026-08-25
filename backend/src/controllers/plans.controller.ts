@@ -1,18 +1,18 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { InsurancePlan } from "../models/InsurancePlan.js";
 
 // GET /api/plans
-export async function getPlans(_req: Request, res: Response): Promise<void> {
+export async function getPlans(_req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const plans = await InsurancePlan.find().sort({ popular: -1, rating: -1 });
     res.json({ plans });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
+  } catch (error) {
+    next(error);
   }
 }
 
 // GET /api/plans/:id
-export async function getPlanById(req: Request, res: Response): Promise<void> {
+export async function getPlanById(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const plan = await InsurancePlan.findById(req.params.id);
     if (!plan) {
@@ -20,7 +20,7 @@ export async function getPlanById(req: Request, res: Response): Promise<void> {
       return;
     }
     res.json({ plan });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
+  } catch (error) {
+    next(error);
   }
 }

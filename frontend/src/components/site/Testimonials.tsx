@@ -4,7 +4,7 @@ import { Star, Quote } from "lucide-react";
 const items = [
   { name: "Dr. Anjali Sharma", role: "Cardiologist · Apollo", quote: "TechEnsureX cut our claim turnaround from 14 days to under 24 hours. The AI flags issues we'd usually miss." },
   { name: "Rohan Mehta", role: "Patient", quote: "Uploaded my hospital bills, got predicted approval in seconds, and the payout hit my account the same week." },
-  { name: "Priya Iyer", role: "VP Claims · Star Health", quote: "Fraud detection saved us ₹2.1 Cr last quarter. The blockchain audit trail is a regulator's dream." },
+  { name: "Priya Iyer", role: "VP Claims · Star Health", quote: "Fraud detection saved us ₹2.1 Cr last quarter. The audit trail is a regulator's dream." },
   { name: "Karan Gupta", role: "Hospital Admin", quote: "The AI assistant handles 70% of patient insurance queries. Our front desk finally has time to focus on care." },
 ];
 
@@ -13,9 +13,8 @@ export default function Testimonials() {
     <section className="py-28 bg-muted/30">
       <div className="container">
         <div className="max-w-3xl mx-auto text-center mb-16">
-          <span className="inline-block text-xs font-bold tracking-[0.25em] text-primary uppercase mb-4">◆ Loved by healthcare</span>
           <h2 className="display-text text-4xl md:text-6xl font-extrabold">
-            Trusted across <span className="font-serif-italic font-normal text-gradient-vibrant">hospitals & insurers.</span>
+            Trusted across <span className="font-serif-italic font-normal text-primary">hospitals & insurers.</span>
           </h2>
         </div>
 
@@ -26,7 +25,7 @@ export default function Testimonials() {
               initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.08 }}
               whileHover={{ y: -6 }}
-              className="bg-card border border-border rounded-2xl p-6 shadow-soft hover:shadow-elevated transition-all relative"
+              className="bg-card border border-border/70 rounded-2xl p-6 shadow-soft hover:shadow-elevated transition-all relative"
             >
               <Quote className="absolute top-4 right-4 w-8 h-8 text-primary/10" />
               <div className="flex gap-0.5 mb-3">

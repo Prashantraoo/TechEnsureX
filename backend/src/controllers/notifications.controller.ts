@@ -1,10 +1,11 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { Notification } from "../models/Notification.js";
 
 // GET /api/notifications
 export async function getNotifications(
   req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ): Promise<void> {
   try {
     const notifications = await Notification.find({
@@ -12,13 +13,13 @@ export async function getNotifications(
     }).sort({ createdAt: -1 });
 
     res.json({ notifications });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
+  } catch (error) {
+    next(error);
   }
 }
 
 // PUT /api/notifications/:id/read
-export async function markAsRead(req: Request, res: Response): Promise<void> {
+export async function markAsRead(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const notification = await Notification.findOneAndUpdate(
       { _id: req.params.id, userId: req.user!._id },
@@ -32,7 +33,7 @@ export async function markAsRead(req: Request, res: Response): Promise<void> {
     }
 
     res.json({ message: "Marked as read.", notification });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
+  } catch (error) {
+    next(error);
   }
 }

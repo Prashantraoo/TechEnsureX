@@ -4,15 +4,33 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TechEnsureX — AI-Powered Medical Insurance & Smart Claims</title>
-    <meta name="description" content="TechEnsureX simplifies medical insurance and claims with AI automation, fraud detection, and blockchain-verified settlements." />
+    <meta name="description" content="TechEnsureX simplifies medical insurance and claims with AI automation, fraud detection, and secure claim settlements." />
     <meta name="author" content="TechEnsureX" />
+    <meta name="theme-color" content="#1a56db" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Instrument+Serif:ital@0;1&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+    <script>
+      // Apply the persisted theme before first paint to avoid a light/dark flash.
+      (function () {
+        try {
+          var stored = localStorage.getItem("theme");
+          var theme = stored === "light" || stored === "dark"
+            ? stored
+            : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+          if (theme === "dark") document.documentElement.classList.add("dark");
+        } catch (e) {}
+      })();
+    </script>
 
     <meta property="og:title" content="TechEnsureX — AI Medical Insurance Platform" />
-    <meta property="og:description" content="AI-powered medical insurance, smart claim settlement, and blockchain verification for modern healthcare." />
+    <meta property="og:description" content="AI-powered medical insurance, smart claim settlement, and secure verification for modern healthcare." />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
 

@@ -3,6 +3,8 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeProvider } from "@/components/theme-provider";
+import { SmoothScroll } from "@/components/motion/SmoothScroll";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import SignIn from "./pages/SignIn.tsx";
@@ -23,33 +25,37 @@ import Admin from "./pages/dashboard/Admin.tsx";
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/sign-in" element={<SignIn />} />
-          <Route path="/sign-up" element={<SignUp />} />
-          <Route path="/dashboard" element={<DashboardLayout />}>
-            <Route index element={<DashboardHome />} />
-            <Route path="plans" element={<InsurancePlans />} />
-            <Route path="claims" element={<Claims />} />
-            <Route path="health-report" element={<HealthReport />} />
-            <Route path="settlement" element={<Settlement />} />
-            <Route path="history" element={<MedicalHistory />} />
-            <Route path="assistant" element={<Assistant />} />
-            <Route path="notifications" element={<Notifications />} />
-            <Route path="billing" element={<Billing />} />
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="admin" element={<Admin />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <SmoothScroll>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/sign-in" element={<SignIn />} />
+              <Route path="/sign-up" element={<SignUp />} />
+              <Route path="/dashboard" element={<DashboardLayout />}>
+                <Route index element={<DashboardHome />} />
+                <Route path="plans" element={<InsurancePlans />} />
+                <Route path="claims" element={<Claims />} />
+                <Route path="health-report" element={<HealthReport />} />
+                <Route path="settlement" element={<Settlement />} />
+                <Route path="history" element={<MedicalHistory />} />
+                <Route path="assistant" element={<Assistant />} />
+                <Route path="notifications" element={<Notifications />} />
+                <Route path="billing" element={<Billing />} />
+                <Route path="settings" element={<SettingsPage />} />
+                <Route path="admin" element={<Admin />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </SmoothScroll>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;

@@ -1,10 +1,13 @@
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Bell, CheckCircle2, ShieldAlert, Info, Clock, Loader2 } from "lucide-react";
+import { Bell, CheckCircle2, ShieldAlert, Info, Clock } from "lucide-react";
 import { useState, useEffect } from "react";
 import { notificationsApi } from "@/lib/api";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { LoadingState } from "@/components/shared/LoadingState";
+import { EmptyState } from "@/components/shared/EmptyState";
 
 const icons = {
   success: <CheckCircle2 className="w-5 h-5 text-accent" />,
@@ -60,31 +63,36 @@ export default function Notifications() {
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-display text-2xl md:text-3xl font-bold flex items-center gap-3">
+      <PageHeader
+        title={
+          <span className="flex items-center gap-3">
             Notifications
             {unreadCount > 0 && <span className="bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full">{unreadCount} new</span>}
-          </h1>
-        </div>
-        {unreadCount > 0 && (
+          </span>
+        }
+        actions={unreadCount > 0 && (
           <Button variant="outline" size="sm" onClick={markAll}>Mark all as read</Button>
         )}
-      </div>
+      />
 
       {loading ? (
-        <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+        <LoadingState variant="list" rows={5} />
       ) : notifications.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground">
-          <Bell className="w-10 h-10 mx-auto mb-4 opacity-20" />
-          <p>No notifications yet.</p>
-        </div>
+        <EmptyState icon={Bell} title="No notifications yet" />
       ) : (
         <div className="space-y-3">
           {notifications.map((n: any, i: number) => (
             <motion.div key={n._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-              <Card 
-                className={`p-4 flex gap-4 cursor-pointer transition-colors ${!n.read ? "bg-muted/30 border-primary/20" : "opacity-75 hover:opacity-100"}`}
+              <Card
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleMarkAsRead(n._id, n.read);
+                  }
+                }}
+                className={`p-4 flex gap-4 cursor-pointer transition-[opacity,background-color,transform] duration-150 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${!n.read ? "bg-muted/30 border-primary/20" : "opacity-75 hover:opacity-100"}`}
                 onClick={() => handleMarkAsRead(n._id, n.read)}
               >
                 <div className="mt-1 shrink-0">{icons[n.type as keyof typeof icons] || icons.info}</div>

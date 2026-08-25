@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { User } from "../models/User.js";
 import { env } from "../config/env.js";
@@ -10,7 +10,7 @@ function generateToken(id: string): string {
 }
 
 // POST /api/auth/register
-export async function register(req: Request, res: Response): Promise<void> {
+export async function register(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { name, email, password } = req.body;
 
@@ -23,7 +23,7 @@ export async function register(req: Request, res: Response): Promise<void> {
 
     const user = await User.create({ name, email, password });
 
-    const token = generateToken(user._id as string);
+    const token = generateToken(user._id.toString());
 
     res.status(201).json({
       message: "Account created successfully.",
@@ -35,13 +35,13 @@ export async function register(req: Request, res: Response): Promise<void> {
         role: user.role,
       },
     });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message || "Registration failed." });
+  } catch (error) {
+    next(error);
   }
 }
 
 // POST /api/auth/login
-export async function login(req: Request, res: Response): Promise<void> {
+export async function login(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { email, password } = req.body;
 
@@ -58,7 +58,7 @@ export async function login(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const token = generateToken(user._id as string);
+    const token = generateToken(user._id.toString());
 
     res.json({
       message: "Login successful.",
@@ -70,13 +70,13 @@ export async function login(req: Request, res: Response): Promise<void> {
         role: user.role,
       },
     });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message || "Login failed." });
+  } catch (error) {
+    next(error);
   }
 }
 
 // GET /api/auth/me
-export async function getMe(req: Request, res: Response): Promise<void> {
+export async function getMe(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     res.json({
       user: {
@@ -86,7 +86,7 @@ export async function getMe(req: Request, res: Response): Promise<void> {
         role: req.user!.role,
       },
     });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
+  } catch (error) {
+    next(error);
   }
 }

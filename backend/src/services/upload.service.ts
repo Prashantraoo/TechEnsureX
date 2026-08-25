@@ -1,4 +1,4 @@
-// ─── HealthGuard AI — Cloudinary Upload Service ─────────
+// ─── TechEnsureX — Cloudinary Upload Service ────────────
 import { v2 as cloudinary } from "cloudinary";
 import { env } from "../config/env.js";
 
@@ -11,7 +11,7 @@ cloudinary.config({
 
 export async function uploadToCloudinary(
   buffer: Buffer,
-  folder: string = "healthguard-documents"
+  folder: string = "techensurex-documents"
 ): Promise<{ url: string; publicId: string }> {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(

@@ -13,7 +13,7 @@ const plans = [
   {
     name: "Professional", price: "₹1,499", period: "/month",
     desc: "Most popular for families and frequent users.",
-    features: ["Unlimited claims", "Fraud detection AI", "Health risk reports", "Priority chat support", "Blockchain audit trail"],
+    features: ["Unlimited claims", "Fraud detection AI", "Health risk reports", "Priority chat support", "Secure audit trail"],
     highlight: true,
   },
   {
@@ -29,9 +29,8 @@ export default function Pricing() {
     <section id="pricing" className="py-28">
       <div className="container">
         <div className="max-w-3xl mx-auto text-center mb-16">
-          <span className="inline-block text-xs font-bold tracking-[0.25em] text-primary uppercase mb-4">◆ Pricing</span>
           <h2 className="display-text text-4xl md:text-6xl font-extrabold">
-            Plans that <span className="font-serif-italic font-normal text-gradient-vibrant">scale with you.</span>
+            Plans that <span className="font-serif-italic font-normal text-primary">scale with you.</span>
           </h2>
           <p className="mt-5 text-muted-foreground text-lg">Start free for 14 days. Cancel anytime. No credit card required.</p>
         </div>
@@ -45,7 +44,7 @@ export default function Pricing() {
               className={`relative rounded-3xl p-7 transition-all ${
                 p.highlight
                   ? "bg-gradient-primary text-primary-foreground shadow-elevated scale-105 border-0"
-                  : "bg-card border border-border shadow-soft hover:shadow-card"
+                  : "bg-card border border-border/70 shadow-soft hover:shadow-card"
               }`}
             >
               {p.highlight && (

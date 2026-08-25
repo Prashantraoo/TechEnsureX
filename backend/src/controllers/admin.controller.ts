@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { User } from "../models/User.js";
 import { Claim } from "../models/Claim.js";
 import { InsurancePlan } from "../models/InsurancePlan.js";
@@ -6,7 +6,8 @@ import { InsurancePlan } from "../models/InsurancePlan.js";
 // GET /api/admin/stats
 export async function getAdminStats(
   _req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ): Promise<void> {
   try {
     const [totalUsers, totalClaims, totalPlans, approvedClaims, rejectedClaims] =
@@ -37,22 +38,23 @@ export async function getAdminStats(
             : "0",
       },
     });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
+  } catch (error) {
+    next(error);
   }
 }
 
 // GET /api/admin/users
 export async function getAdminUsers(
   _req: Request,
-  res: Response
+  res: Response,
+  next: NextFunction
 ): Promise<void> {
   try {
     const users = await User.find()
       .select("-password")
       .sort({ createdAt: -1 });
     res.json({ users });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
+  } catch (error) {
+    next(error);
   }
 }
