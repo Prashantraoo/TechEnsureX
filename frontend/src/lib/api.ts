@@ -270,6 +270,7 @@ interface SignedUploadParams {
   apiKey: string;
   cloudName: string;
   folder: string;
+  type: string;
 }
 
 // Uploads straight to Cloudinary from the browser using a short-lived
@@ -278,6 +279,15 @@ interface SignedUploadParams {
 // apply. This is a genuinely separate request to Cloudinary's own API
 // (not our backend), so it intentionally doesn't go through request()/
 // uploadRequest() — no auth header is needed or wanted here.
+//
+// Posts to /raw/upload with type=authenticated (matching
+// generateSignedUploadParams in backend/src/services/upload.service.ts)
+// rather than the more obvious /image/upload — this Cloudinary account
+// has PDF delivery ACL-restricted by default (confirmed empirically:
+// public delivery of a PDF, even under resource_type "raw", returns 401
+// "deny or ACL failure"). "authenticated" delivery sidesteps that
+// restriction: the backend generates a fresh, short-lived signed
+// download URL per request instead of relying on a static public one.
 async function uploadDirectToCloudinary(file: File, params: SignedUploadParams): Promise<{ publicId: string }> {
   const formData = new FormData();
   formData.append("file", file);
@@ -285,8 +295,9 @@ async function uploadDirectToCloudinary(file: File, params: SignedUploadParams):
   formData.append("timestamp", String(params.timestamp));
   formData.append("signature", params.signature);
   formData.append("folder", params.folder);
+  formData.append("type", params.type);
 
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${params.cloudName}/image/upload`, {
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${params.cloudName}/raw/upload`, {
     method: "POST",
     body: formData,
   });

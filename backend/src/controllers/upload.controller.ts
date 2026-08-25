@@ -132,9 +132,13 @@ interface ProcessDocumentOptions {
   userId: string;
   timing: ReturnType<typeof createTiming>;
   // Already-known Cloudinary URL (direct-upload path uploaded it before
-  // calling in) — when omitted, this uploads the buffer itself (small
-  // multipart path).
+  // calling in) — when set (even to ""), the buffer is NOT uploaded to
+  // Cloudinary again (small multipart path passes undefined here, so it
+  // still runs its own upload; the direct-upload path always sets this,
+  // since the file is already stored under an authenticated/private
+  // asset that a second public upload wouldn't usefully duplicate).
   knownFileUrl?: string;
+  skipCloudinaryFallback?: boolean;
 }
 
 type ProcessResult =
@@ -150,7 +154,7 @@ type ProcessResult =
 // failure path — the multipart path never has that concern, since it
 // only uploads to Cloudinary after extraction has already succeeded.
 async function processDocument(opts: ProcessDocumentOptions): Promise<ProcessResult> {
-  const { buffer, fileName, mimetype, userId, timing, knownFileUrl } = opts;
+  const { buffer, fileName, mimetype, userId, timing, knownFileUrl, skipCloudinaryFallback } = opts;
 
   if (!mimetype.includes("pdf")) {
     return {
@@ -222,7 +226,7 @@ async function processDocument(opts: ProcessDocumentOptions): Promise<ProcessRes
   }
 
   let fileUrl = knownFileUrl ?? "";
-  if (!fileUrl && env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY) {
+  if (!fileUrl && !skipCloudinaryFallback && env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY) {
     try {
       const result = await uploadToCloudinary(buffer);
       fileUrl = result.url;
@@ -395,10 +399,12 @@ export async function confirmDirectUpload(req: Request, res: Response): Promise<
     res.status(413).json({ message: `This file exceeds the ${limitMb}MB upload limit. Please upload a smaller document.` });
     return;
   }
-  if (resource.format !== "pdf") {
-    // Non-PDF direct uploads (jpg/png) aren't analyzable — same
-    // limitation as the small-file path — so there's no reason to keep
-    // the asset around either.
+  // Raw resources don't carry a separate `format` field the way "image"
+  // resources do (see verifyOwnedResource) — the public_id itself is the
+  // filename, extension included, so that's what's checked here. Same
+  // limitation as the small-file path (non-PDF isn't analyzable yet); no
+  // reason to keep the asset around either.
+  if (!resource.publicId.toLowerCase().endsWith(".pdf")) {
     await deleteCloudinaryAsset(publicId);
     res.status(422).json({
       message: "This file type isn't supported for analysis yet — please upload a PDF report (text-based or scanned).",
@@ -409,7 +415,7 @@ export async function confirmDirectUpload(req: Request, res: Response): Promise<
   let buffer: Buffer;
   try {
     timing.mark("downloadStart");
-    buffer = await downloadCloudinaryAsset(resource.secureUrl, MAX_UPLOAD_BYTES);
+    buffer = await downloadCloudinaryAsset(resource.publicId, MAX_UPLOAD_BYTES);
     timing.mark("downloadComplete");
     console.log(`Direct upload: "${fileName}" — downloaded ${buffer.length} bytes from Cloudinary for processing`);
   } catch (error) {
@@ -426,21 +432,23 @@ export async function confirmDirectUpload(req: Request, res: Response): Promise<
       mimetype: "application/pdf",
       userId,
       timing,
-      knownFileUrl: resource.secureUrl,
+      // No usable long-lived public URL exists for an "authenticated"
+      // Cloudinary asset (every download needs a freshly server-signed
+      // URL — see downloadCloudinaryAsset), so nothing is stored in
+      // DocumentScan.fileUrl for this path, and the buffer isn't
+      // re-uploaded under public delivery either (skipCloudinaryFallback)
+      // — that would just be a second unreadable copy of the same file.
+      knownFileUrl: "",
+      skipCloudinaryFallback: true,
     });
+    // The Cloudinary copy only ever served as transport for getting the
+    // PDF bytes past Vercel's request-body cap — DocumentScan never
+    // stores a reference to it, so it's deleted now regardless of
+    // outcome rather than left stored with nothing pointing at it.
+    await deleteCloudinaryAsset(publicId);
     if (result.ok) {
-      // A cache hit (same content already scanned for this user) reuses
-      // the ORIGINAL scan's stored fileUrl rather than this request's
-      // freshly-uploaded asset — the new upload is then a redundant
-      // duplicate with nothing referencing it, so it's cleaned up rather
-      // than kept around unnecessarily.
-      const scan = (result.body as { scan?: { fileUrl?: string } }).scan;
-      if (scan?.fileUrl && scan.fileUrl !== resource.secureUrl) {
-        await deleteCloudinaryAsset(publicId);
-      }
       res.status(result.status).json(result.body);
     } else {
-      await deleteCloudinaryAsset(publicId);
       res.status(result.status).json({ message: result.message });
     }
   } catch (error: any) {
