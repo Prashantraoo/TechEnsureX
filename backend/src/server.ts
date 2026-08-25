@@ -24,9 +24,17 @@ import { indexInsurancePlans } from "./services/rag.service.js";
 const app = express();
 
 // ─── Middleware ──────────────────────────────────────────
+// FRONTEND_URL may be a single origin or a comma-separated list — Vercel
+// gives a stable production URL plus a different URL per preview
+// deployment, so production commonly needs more than one allowed origin.
+const allowedOrigins = [
+  ...env.FRONTEND_URL.split(",").map((o) => o.trim()).filter(Boolean),
+  "http://localhost:8080",
+  "http://127.0.0.1:8080",
+];
 app.use(
   cors({
-    origin: [env.FRONTEND_URL, "http://localhost:8080", "http://127.0.0.1:8080"],
+    origin: allowedOrigins,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -96,3 +104,10 @@ async function start() {
 }
 
 start().catch(console.error);
+
+// Vercel's zero-config Express detection looks for a default export (or a
+// top-level app.listen() call) at this entry file. start() above still
+// owns the real startup sequence — connect to Mongo, then listen — for
+// local dev and any traditional host; this export just gives Vercel the
+// more reliably-documented signal too, with no change to that behavior.
+export default app;

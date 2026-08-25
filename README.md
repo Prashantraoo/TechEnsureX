@@ -61,7 +61,7 @@ frontend/
 
 ## Installation
 
-Requires Node.js 18+ and a running MongoDB instance.
+Requires Node.js 20+ and a running MongoDB instance.
 
 ```bash
 # Backend
@@ -81,11 +81,12 @@ Copy each example file and fill in real values — never commit the copies.
 
 | Variable | Required | Notes |
 |---|---|---|
+| `NODE_ENV` | no | `production` enables the `JWT_SECRET` startup guard below |
 | `PORT` | no | defaults to `5000` |
-| `MONGODB_URI` | yes | local or hosted MongoDB connection string |
+| `MONGODB_URI` | yes | local or hosted (e.g. MongoDB Atlas) connection string |
 | `JWT_SECRET` | **yes in production** | server refuses to start in production without a real value |
 | `JWT_EXPIRES_IN` | no | defaults to `7d` |
-| `FRONTEND_URL` | yes | used for CORS |
+| `FRONTEND_URL` | yes | used for CORS; accepts a single origin or a comma-separated list (e.g. a production URL plus a preview URL) |
 | `NVIDIA_API_KEY` | yes | required for document analysis, claim summaries, and chat |
 | `NVIDIA_BASE_URL`, `NIM_*_MODEL` | no | sensible defaults provided, override only with model IDs verified against your account |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | yes | required for document uploads |
