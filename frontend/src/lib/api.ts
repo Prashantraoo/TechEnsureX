@@ -256,17 +256,70 @@ export const aiApi = {
 // is a fast-fail convenience, not the real gate.
 export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
+// Vercel's Serverless Function platform enforces its own hard, ~4.5MB
+// request-body cap (independent of anything configured in this app,
+// confirmed against this project's own production deployment) — a file
+// at or above this size can't reach POST /upload/document at all; the
+// platform rejects it before our backend code runs. Must match
+// DIRECT_UPLOAD_THRESHOLD_BYTES in backend/src/controllers/upload.controller.ts.
+export const DIRECT_UPLOAD_THRESHOLD_BYTES = 4 * 1024 * 1024;
+
+interface SignedUploadParams {
+  timestamp: number;
+  signature: string;
+  apiKey: string;
+  cloudName: string;
+  folder: string;
+}
+
+// Uploads straight to Cloudinary from the browser using a short-lived
+// signature from our backend — the file's bytes never pass through our
+// Vercel function's request body, so the platform's size cap doesn't
+// apply. This is a genuinely separate request to Cloudinary's own API
+// (not our backend), so it intentionally doesn't go through request()/
+// uploadRequest() — no auth header is needed or wanted here.
+async function uploadDirectToCloudinary(file: File, params: SignedUploadParams): Promise<{ publicId: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("api_key", params.apiKey);
+  formData.append("timestamp", String(params.timestamp));
+  formData.append("signature", params.signature);
+  formData.append("folder", params.folder);
+
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${params.cloudName}/image/upload`, {
+    method: "POST",
+    body: formData,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError(data?.error?.message || "Upload failed", res.status, data);
+  }
+  return { publicId: data.public_id };
+}
+
 export const uploadApi = {
-  scanDocument: (file: File) => {
+  scanDocument: async (file: File) => {
     if (file.size > MAX_UPLOAD_BYTES) {
       const limitMb = Math.round(MAX_UPLOAD_BYTES / (1024 * 1024));
-      return Promise.reject(
-        new ApiError(`This file exceeds the ${limitMb}MB upload limit. Please upload a smaller document.`, 413)
-      );
+      throw new ApiError(`This file exceeds the ${limitMb}MB upload limit. Please upload a smaller document.`, 413);
     }
-    const formData = new FormData();
-    formData.append("file", file);
-    return uploadRequest("/upload/document", formData);
+
+    if (file.size < DIRECT_UPLOAD_THRESHOLD_BYTES) {
+      const formData = new FormData();
+      formData.append("file", file);
+      return uploadRequest("/upload/document", formData);
+    }
+
+    // Large file: get a signed Cloudinary upload target, upload directly
+    // to Cloudinary (bypassing our backend's request body entirely), then
+    // hand the backend just the resulting reference so it can fetch the
+    // bytes itself and run the same extraction/analysis pipeline.
+    const { data: signatureParams } = await request<SignedUploadParams>("/upload/signature", { method: "POST" });
+    const { publicId } = await uploadDirectToCloudinary(file, signatureParams);
+    return request("/upload/confirm", {
+      method: "POST",
+      body: JSON.stringify({ publicId, fileName: file.name }),
+    });
   },
 
   getScans: () => request("/upload/scans"),
