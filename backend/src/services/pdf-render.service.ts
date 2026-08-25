@@ -6,6 +6,7 @@
 // exist here (see src/types/pdfjs-legacy.d.ts for why the import path
 // below needs its own type shim).
 
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createCanvas } from "@napi-rs/canvas";
@@ -16,7 +17,31 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // correctly when a PDF's embedded fonts fall back to a standard one —
 // without this it silently mis-renders glyphs, which would directly
 // hurt the vision model's ability to read the page accurately.
-const STANDARD_FONTS_DIR = path.join(__dirname, "..", "..", "node_modules", "pdfjs-dist", "standard_fonts") + "/";
+//
+// node_modules sits a different number of directories above this file
+// depending on how it's running — two levels up for a local/traditional
+// build (dist/services/ -> backend/node_modules), but only one level up
+// once deployed to Vercel, which flattens the dist/ segment out of the
+// runtime path (services/ -> node_modules). Walk upward instead of
+// hardcoding a depth, so this resolves correctly in both.
+function findStandardFontsDir(startDir: string): string {
+  let dir = startDir;
+  for (let i = 0; i < 6; i++) {
+    const candidate = path.join(dir, "node_modules", "pdfjs-dist", "standard_fonts");
+    // pdf.js requires this as a URL-style string with a literal trailing
+    // "/" — not path.sep, which is "\" on Windows and fails its check.
+    if (fs.existsSync(candidate)) return candidate + "/";
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  // Fall back to the traditional-build assumption if nothing was found —
+  // keeps prior behavior (and its error message) for any layout not
+  // covered above, rather than failing silently.
+  return path.join(startDir, "..", "..", "node_modules", "pdfjs-dist", "standard_fonts") + "/";
+}
+
+const STANDARD_FONTS_DIR = findStandardFontsDir(__dirname);
 
 export type PdfRenderErrorCode = "too_many_pages" | "render_failed" | "payload_too_large";
 

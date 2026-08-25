@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "build": "tsc && node scripts/postbuild.cjs",
     "start": "node dist/server.js",
     "seed": "tsx src/seed/seed.ts",
     "test:nvidia": "tsx src/scripts/test-nvidia.ts",
