@@ -163,7 +163,7 @@ export default function DashboardLayout() {
             </span>
           </Link>
         </div>
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+        <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-5">
           {navGroups.map((group) => {
             const items = group.items.filter((item) => !item.adminOnly || user?.role === "admin");
             if (items.length === 0) return null;

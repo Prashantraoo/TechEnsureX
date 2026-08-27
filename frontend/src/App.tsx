@@ -31,27 +31,31 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <SmoothScroll>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/sign-in" element={<SignIn />} />
-              <Route path="/sign-up" element={<SignUp />} />
-              <Route path="/dashboard" element={<DashboardLayout />}>
-                <Route index element={<DashboardHome />} />
-                <Route path="plans" element={<InsurancePlans />} />
-                <Route path="claims" element={<Claims />} />
-                <Route path="health-report" element={<HealthReport />} />
-                <Route path="settlement" element={<Settlement />} />
-                <Route path="history" element={<MedicalHistory />} />
-                <Route path="assistant" element={<Assistant />} />
-                <Route path="notifications" element={<Notifications />} />
-                <Route path="billing" element={<Billing />} />
-                <Route path="settings" element={<SettingsPage />} />
-                <Route path="admin" element={<Admin />} />
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </SmoothScroll>
+          <Routes>
+            {/* Lenis-driven inertial smooth scroll powers the marketing page's
+                GSAP ScrollTrigger reveals/parallax and is scoped to just that
+                route — everywhere else (auth, dashboard) needs plain native
+                scrolling so nested scroll containers like the sidebar nav and
+                AI chat panes respond correctly to wheel/trackpad input instead
+                of having it hijacked by a document-level smooth-scroll. */}
+            <Route path="/" element={<SmoothScroll><Index /></SmoothScroll>} />
+            <Route path="/sign-in" element={<SignIn />} />
+            <Route path="/sign-up" element={<SignUp />} />
+            <Route path="/dashboard" element={<DashboardLayout />}>
+              <Route index element={<DashboardHome />} />
+              <Route path="plans" element={<InsurancePlans />} />
+              <Route path="claims" element={<Claims />} />
+              <Route path="health-report" element={<HealthReport />} />
+              <Route path="settlement" element={<Settlement />} />
+              <Route path="history" element={<MedicalHistory />} />
+              <Route path="assistant" element={<Assistant />} />
+              <Route path="notifications" element={<Notifications />} />
+              <Route path="billing" element={<Billing />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="admin" element={<Admin />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

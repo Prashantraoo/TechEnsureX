@@ -25,22 +25,39 @@ export default function Assistant() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Tracks whether the user was already at (or near) the bottom before this
+  // update, so a new message only auto-scrolls when they're following along
+  // — not while they've deliberately scrolled up to reread something.
+  const stickToBottomRef = useRef(true);
 
   useEffect(() => {
     async function load() {
       const u = await getCurrentUser();
       setUser(u);
-      setMsgs([{ 
-        role: "bot", 
-        text: `Hi ${u?.name || "there"}! I'm EnsureAI. I can help you with your policies, claims, or finding hospitals. How can I assist you today?` 
+      setMsgs([{
+        role: "bot",
+        text: `Hi ${u?.name || "there"}! I'm EnsureAI. I can help you with your policies, claims, or finding hospitals. How can I assist you today?`
       }]);
     }
     load();
   }, []);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Instant, not smooth: a streamed reply re-triggers this on every chunk,
+    // and a smooth animation restarted that often never catches up to the
+    // growing content — which reads as "stopped following" even though the
+    // user never scrolled.
+    if (stickToBottomRef.current) {
+      endRef.current?.scrollIntoView({ behavior: "auto" });
+    }
   }, [msgs, loading]);
+
+  const handleConversationScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
 
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
@@ -101,7 +118,7 @@ export default function Assistant() {
       />
 
       <Card className="flex-1 flex flex-col overflow-hidden bg-background/50 border-border/70">
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+        <div ref={scrollRef} onScroll={handleConversationScroll} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 md:p-6 space-y-6">
           {msgs.map((m, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
               className={`flex items-start gap-4 ${m.role === "user" ? "flex-row-reverse" : ""}`}>

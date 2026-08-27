@@ -17,12 +17,34 @@ export function ChatbotWidget() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Same "only auto-follow if already at the bottom" behavior as the full
+  // AI Chat Assistant page — see Assistant.tsx.
+  const stickToBottomRef = useRef(true);
 
   useEffect(() => {
-    if (open) {
-      endRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!open) return;
+    // Re-mounting the panel each open drops any prior scroll position, so
+    // treat every open as starting stuck to the latest message.
+    stickToBottomRef.current = true;
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [open]);
+
+  useEffect(() => {
+    // Instant, not smooth: a streamed reply re-triggers this on every chunk,
+    // and a smooth animation restarted that often never catches up to the
+    // growing content — which reads as "stopped following" even though the
+    // user never scrolled.
+    if (open && stickToBottomRef.current) {
+      endRef.current?.scrollIntoView({ behavior: "auto" });
     }
-  }, [msgs, loading, open]);
+  }, [msgs, loading]);
+
+  const handleConversationScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
 
   const send = async () => {
     if (!input.trim()) return;
@@ -106,7 +128,7 @@ export function ChatbotWidget() {
               </div>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/20">
+            <div ref={scrollRef} onScroll={handleConversationScroll} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 space-y-3 bg-muted/20">
               {msgs.map((m, i) => (
                 <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-sm ${
