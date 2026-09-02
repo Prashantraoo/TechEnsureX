@@ -9,7 +9,7 @@ import {
   deleteCloudinaryAsset,
   CloudinaryResourceError,
 } from "../services/upload.service.js";
-import { analyzeDocument, formatAnalysisAsText, type AnalysisTiming } from "../services/document-analysis.service.js";
+import { analyzeDocument, formatAnalysisAsText, isMinimalFallbackAnalysis, type AnalysisTiming } from "../services/document-analysis.service.js";
 import { analyzeScannedDocument } from "../services/vision-analysis.service.js";
 import { extractPdfText, PdfExtractionError } from "../services/pdf.service.js";
 import { PdfRenderError } from "../services/pdf-render.service.js";
@@ -172,7 +172,16 @@ async function processDocument(opts: ProcessDocumentOptions): Promise<ProcessRes
   const cached = await DocumentScan.findOne({ userId, contentHash })
     .sort({ createdAt: -1 })
     .lean();
-  if (cached) {
+  // A cached analysis that carries the minimal fallback narrative is NOT
+  // a result worth reusing: it means that run lost its AI narrative to a
+  // transient provider failure, and serving it back would make one bad
+  // moment permanent for this user — re-uploading the file, the obvious
+  // way to retry, would keep returning the same degraded analysis. Fall
+  // through and analyze again instead; the facts are re-extracted
+  // deterministically either way, so the only cost is one more AI call.
+  if (cached && isMinimalFallbackAnalysis(cached.analysis)) {
+    console.warn("processDocument: cached analysis has the fallback narrative — re-analyzing instead of serving it.");
+  } else if (cached) {
     timing.setPath("fast"); // cache doesn't record which path produced it; not meaningful here
     timing.mark("cacheHit");
     timing.log();

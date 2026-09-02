@@ -324,6 +324,24 @@ async function runReasoningNarrativeWithFallback(
   return mergeFactsWithNarrative(facts, minimalFallbackNarrative(facts));
 }
 
+// Marks a result as having come from minimalFallbackNarrative below.
+// The facts in such a result are real and fully grounded, but no
+// AI-authored prose was produced for it — which is a transient outcome,
+// not a property of the document, hence isMinimalFallbackAnalysis.
+const FALLBACK_NARRATIVE_MARKER = "AI-generated narrative could not be produced for this report.";
+
+/**
+ * True if this analysis carries the minimal fallback narrative rather
+ * than AI-authored prose. Callers that persist or reuse an analysis
+ * should treat it as retryable rather than final: the upload cache uses
+ * this so a report whose first analysis hit a transient provider failure
+ * isn't served that degraded result forever (see upload.controller.ts).
+ */
+export function isMinimalFallbackAnalysis(analysis: unknown): boolean {
+  const summary = (analysis as { documentSummary?: unknown } | null)?.documentSummary;
+  return typeof summary === "string" && summary.includes(FALLBACK_NARRATIVE_MARKER);
+}
+
 // Used only if the reasoning model itself fails to produce valid output
 // — an extremely rare double-failure. Still 100% grounded (built purely
 // from the facts already extracted), just without AI-authored prose.
@@ -332,8 +350,8 @@ function minimalFallbackNarrative(facts: DeterministicExtraction): NarrativeResu
   return {
     documentSummary:
       facts.labResults.length > 0
-        ? `Extracted ${facts.labResults.length} lab/vital value(s) from this report; ${abnormalCount} outside the normal range. AI-generated narrative could not be produced for this report.`
-        : "AI-generated narrative could not be produced for this report.",
+        ? `Extracted ${facts.labResults.length} lab/vital value(s) from this report; ${abnormalCount} outside the normal range. ${FALLBACK_NARRATIVE_MARKER}`
+        : FALLBACK_NARRATIVE_MARKER,
     // null, never 0 — no AI-authored risk read happened here at all, so
     // there is nothing to report a score FOR.
     riskScore: { score: null, reasoning: "Some required values could not be reliably extracted from this report." },
