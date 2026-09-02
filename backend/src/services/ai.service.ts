@@ -126,13 +126,13 @@ async function streamWithBoundedRetry(
   onDelta: (text: string) => void
 ): Promise<void> {
   try {
-    await streamChatDeltas(messages, { model: MODELS.chat, maxTokens: 700 }, onDelta);
+    await streamChatDeltas(messages, { model: MODELS.chat, maxTokens: 700, disableThinking: true }, onDelta);
   } catch (error) {
     if (error instanceof AiServiceError && (error.code === "network_error" || error.code === "rate_limited")) {
       const backoffMs = error.code === "rate_limited" ? 800 : 0;
       console.warn(`[AI] ${error.code} before any content arrived — retrying once${backoffMs ? ` after ${backoffMs}ms` : ""}.`);
       if (backoffMs) await new Promise((resolve) => setTimeout(resolve, backoffMs));
-      await streamChatDeltas(messages, { model: MODELS.chat, maxTokens: 700 }, onDelta);
+      await streamChatDeltas(messages, { model: MODELS.chat, maxTokens: 700, disableThinking: true }, onDelta);
       return;
     }
     throw error;
@@ -173,7 +173,7 @@ Please analyze and provide recommendations.`,
   // A 4-section summary from a handful of numbers doesn't need the
   // reasoning model — the fast chat model handles this well and quickly.
   let content = "";
-  await streamChatDeltas(messages, { model: MODELS.chat, maxTokens: 500, temperature: 0.5 }, (delta) => {
+  await streamChatDeltas(messages, { model: MODELS.chat, maxTokens: 500, temperature: 0.5, disableThinking: true }, (delta) => {
     content += delta;
   });
   return content;

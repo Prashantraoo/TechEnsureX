@@ -24,7 +24,7 @@ export const env = {
   // .env only with IDs you've similarly verified.
   NVIDIA_API_KEY: process.env.NVIDIA_API_KEY || "",
   NVIDIA_BASE_URL: process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1",
-  NIM_CHAT_MODEL: process.env.NIM_CHAT_MODEL || "nvidia/nemotron-3-nano-30b-a3b",
+  NIM_CHAT_MODEL: process.env.NIM_CHAT_MODEL || "nvidia/nemotron-3.5-lightning-30b-a3b",
   NIM_REASONING_MODEL: process.env.NIM_REASONING_MODEL || "nvidia/nemotron-3-ultra-550b-a55b",
   NIM_VISION_MODEL: process.env.NIM_VISION_MODEL || "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
   NIM_EMBED_MODEL: process.env.NIM_EMBED_MODEL || "nvidia/nemotron-3-embed-1b",

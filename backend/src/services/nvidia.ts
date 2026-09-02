@@ -112,7 +112,7 @@ interface ChatCompletionOptions {
   /**
    * Suppresses the model's hidden chain-of-thought (`reasoning_content`)
    * for hybrid-reasoning models. Verified experimentally against
-   * MODELS.chat (nemotron-3-nano-30b-a3b): the documented "detailed
+   * MODELS.chat (nemotron-3.5-lightning-30b-a3b): the documented "detailed
    * thinking off" system-prompt convention is unreliable for this model
    * on this task, but the request-level `chat_template_kwargs.thinking`
    * flag reliably drops reasoning_content to empty and returns
@@ -354,7 +354,11 @@ export async function streamChatDeltas(
         temperature: options.temperature ?? 0.6,
         max_tokens: options.maxTokens ?? 1024,
         stream: true,
-      },
+        // Same verified lever as chatCompletionStream. MODELS.chat is a
+        // hybrid-reasoning model, so without this its chain-of-thought
+        // streams straight into the user's chat bubble.
+        ...(options.disableThinking ? { chat_template_kwargs: { thinking: false } } : {}),
+      } as OpenAI.Chat.ChatCompletionCreateParamsStreaming,
       { timeout: timeoutMs }
     );
   } catch (error: any) {
