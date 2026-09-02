@@ -343,7 +343,9 @@ export async function streamChatDeltas(
     : [{ role: "system", content: TECHENSUREX_SYSTEM_PROMPT }, ...messages];
 
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const deadline = Date.now() + timeoutMs;
+  const startedAt = Date.now();
+  const deadline = startedAt + timeoutMs;
+  const model = options.model ?? MODELS.chat;
 
   let stream;
   try {
@@ -365,17 +367,32 @@ export async function streamChatDeltas(
     throw mapNvidiaError(error);
   }
 
+  // Diagnostics only — model IDs and counters, never keys or message
+  // content. These are what distinguish the three ways this call can
+  // stall (never connected / connected but silent / connected but
+  // burning the whole budget on hidden reasoning), which is otherwise
+  // indistinguishable from the outside once it surfaces as one timeout.
+  console.log(`[AI] Stream open model=${model} in ${Date.now() - startedAt}ms (budget ${timeoutMs}ms)`);
+
   let receivedAny = false;
+  let chunkCount = 0;
+  let reasoningChars = 0;
   try {
     for await (const chunk of stream) {
+      chunkCount++;
+      const delta: any = chunk.choices?.[0]?.delta;
+      if (typeof delta?.reasoning_content === "string") reasoningChars += delta.reasoning_content.length;
       if (Date.now() > deadline) {
         if (receivedAny) return; // give up on the rest, keep what we have
+        console.error(
+          `[AI] Timed out after ${Date.now() - startedAt}ms with no content: model=${model} chunks=${chunkCount} reasoningChars=${reasoningChars}`
+        );
         throw new AiServiceError("The AI service took too long to respond. Please try again.", "timeout");
       }
-      const delta = chunk.choices?.[0]?.delta?.content;
-      if (delta) {
+      const text = delta?.content;
+      if (text) {
         receivedAny = true;
-        onDelta(delta);
+        onDelta(text);
       }
     }
   } catch (error: any) {
@@ -387,6 +404,9 @@ export async function streamChatDeltas(
   }
 
   if (!receivedAny) {
+    console.error(
+      `[AI] Stream ended with no content after ${Date.now() - startedAt}ms: model=${model} chunks=${chunkCount} reasoningChars=${reasoningChars}`
+    );
     throw new AiServiceError(
       "The AI service returned an empty response. Please try again.",
       "empty_response"
@@ -456,9 +476,57 @@ export async function checkSafety(text: string): Promise<SafetyCheckResult> {
   }
 }
 
+// NVIDIA reports capacity problems on a STREAMING call inside the
+// stream rather than as an HTTP status: the response is 200, and the
+// first SSE frame is `data: {"error":{...}}` followed by [DONE]. Two
+// forms have been observed live from production:
+//   {"message":"Service temporarily overloaded","type":"service_unavailable","code":503}
+//   {"message":"ResourceExhausted: Worker local total request limit reached (16/16)",
+//    "type":"internal_server_error","code":500}
+// The SDK turns those frames into an APIError carrying the body's own
+// code/type but NO HTTP status, so status-based classification alone
+// reads them as a network failure and tells the user to check their
+// connection. They are neither — they're the provider being briefly out
+// of capacity, they fail in ~200-800ms, and the next attempt usually
+// succeeds, so they must classify as "rate_limited" to land in the
+// retry lists (see retry.ts) with an accurate message.
+function isTransientCapacityError(error: any): boolean {
+  const body = error?.error ?? error;
+  const code = body?.code ?? error?.code;
+  const type = String(body?.type ?? error?.type ?? "");
+  const message = String(body?.message ?? error?.message ?? "");
+  return (
+    code === 429 ||
+    code === 503 ||
+    code === "429" ||
+    code === "503" ||
+    type === "service_unavailable" ||
+    /resource\s*exhausted|temporarily overloaded|over ?capacity|too many requests/i.test(message)
+  );
+}
+
+// What NVIDIA actually said, for the server log only. Provider-generated
+// diagnostics ("Service temporarily overloaded", context-length
+// complaints, model-availability notices) — never the API key, never the
+// request, and never model output, which is the thing the rest of this
+// codebase is careful not to log. Without this, every upstream failure
+// reaches the log as one of a handful of deliberately-generic user-facing
+// strings, which is not enough to tell a capacity blip from a malformed
+// request when only production can reproduce it.
+function logUpstream(error: any): void {
+  const body = error?.error ?? {};
+  console.warn("[AI] Upstream NVIDIA failure:", {
+    status: error?.status ?? error?.response?.status ?? null,
+    type: body?.type ?? error?.type ?? null,
+    code: body?.code ?? error?.code ?? null,
+    upstreamMessage: String(body?.message ?? error?.message ?? "").slice(0, 200),
+  });
+}
+
 // Translates SDK/HTTP-level failures into safe, typed errors. Never
 // includes the API key; only status/type info useful for logs.
-function mapNvidiaError(error: any): AiServiceError {
+export function mapNvidiaError(error: any): AiServiceError {
+  logUpstream(error);
   const status = error?.status ?? error?.response?.status;
   const ctorName: string = error?.constructor?.name ?? "";
   const isTimeout =
@@ -469,6 +537,12 @@ function mapNvidiaError(error: any): AiServiceError {
 
   if (isTimeout) {
     return new AiServiceError("The AI service took too long to respond. Please try again.", "timeout");
+  }
+  if (isTransientCapacityError(error)) {
+    return new AiServiceError(
+      "The AI service is busy right now. Please try again in a moment.",
+      "rate_limited"
+    );
   }
   if (status === 401 || status === 403) {
     return new AiServiceError(

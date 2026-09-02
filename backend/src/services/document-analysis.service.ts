@@ -414,7 +414,15 @@ async function runReasoningNarrative(
         hardTimeoutMs: 80_000,
       }),
     "runReasoningNarrative",
-    ["network_error", "rate_limited", "empty_response"]
+    // "upstream_error" is retried HERE but nowhere else: this is the
+    // escalated path, so a failure doesn't surface as an error the user
+    // can retry — it silently downgrades their report to the minimal
+    // fallback narrative. NVIDIA's shared endpoint was measured throwing
+    // transient upstream failures from production often enough for that
+    // to be a real quality loss, and the retry policy only spends a
+    // third attempt when the failures come back fast (see retry.ts), so
+    // a genuinely bad request costs a few hundred milliseconds.
+    ["network_error", "rate_limited", "empty_response", "upstream_error"]
   );
   return tryParseAndValidateNarrative(content);
 }

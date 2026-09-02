@@ -3,6 +3,7 @@ import { env } from "../config/env.js";
 import { User } from "../models/User.js";
 import { Claim } from "../models/Claim.js";
 import { InsurancePlan } from "../models/InsurancePlan.js";
+import { INSURANCE_PLANS } from "./plans.js";
 import { Settlement } from "../models/Settlement.js";
 import { HealthReport } from "../models/HealthReport.js";
 import { Notification } from "../models/Notification.js";
@@ -45,64 +46,7 @@ async function seed() {
     console.log("👤 Created users");
 
     // ─── Create Insurance Plans ─────────────────────────
-    await InsurancePlan.insertMany([
-      {
-        name: "Star Health Family Optima",
-        insurer: "Star Health",
-        premium: 18400,
-        cover: "₹10 L",
-        rating: 4.7,
-        popular: true,
-        features: [
-          "Cashless at 12,000+ hospitals",
-          "Pre/post hospitalization",
-          "Day-care procedures",
-          "No room rent capping",
-        ],
-      },
-      {
-        name: "HDFC Ergo my:health Suraksha",
-        insurer: "HDFC Ergo",
-        premium: 14200,
-        cover: "₹7.5 L",
-        rating: 4.5,
-        popular: false,
-        features: [
-          "Restoration benefit",
-          "Worldwide emergency cover",
-          "Health check-ups",
-          "Maternity add-on",
-        ],
-      },
-      {
-        name: "ICICI Lombard Complete Health",
-        insurer: "ICICI Lombard",
-        premium: 21500,
-        cover: "₹15 L",
-        rating: 4.6,
-        popular: false,
-        features: [
-          "AYUSH treatment",
-          "Wellness rewards",
-          "Global coverage",
-          "Critical illness rider",
-        ],
-      },
-      {
-        name: "Max Bupa ReAssure 2.0",
-        insurer: "Niva Bupa",
-        premium: 16800,
-        cover: "₹10 L",
-        rating: 4.4,
-        popular: false,
-        features: [
-          "Refill benefit",
-          "ReAssure for life",
-          "Live healthy discount",
-          "Booster benefit",
-        ],
-      },
-    ]);
+    await InsurancePlan.insertMany([...INSURANCE_PLANS]);
     console.log("📋 Created insurance plans");
 
     // ─── Create Claims ──────────────────────────────────

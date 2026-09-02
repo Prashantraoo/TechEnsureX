@@ -8,10 +8,10 @@
 import {
   streamChatDeltas,
   MODELS,
-  AiServiceError,
   TECHENSUREX_SYSTEM_PROMPT,
   type ChatMessage,
 } from "./nvidia.js";
+import { withBoundedRetry } from "./retry.js";
 import { DocumentScan } from "../models/DocumentScan.js";
 import { formatAnalysisAsContext, type DocumentAnalysisResult } from "./document-analysis.service.js";
 import { retrieveRelevantChunks, formatRetrievedContext } from "./rag.service.js";
@@ -112,31 +112,28 @@ async function getRecentDocumentContext(userId: string): Promise<string | null> 
   return formatAnalysisAsContext(scan.analysis as unknown as DocumentAnalysisResult, scan.fileName);
 }
 
-// Limited backoff, not endless retry: one retry, and only for the two
-// error classes that are genuinely worth retrying — a dropped
-// connection before any content arrived, or a 429/503 "busy" response
-// (brief pause, then one more attempt, per the product spec's "attempt
-// 1, wait briefly, attempt 2, then friendly message" pattern). A plain
-// "timeout" (the model IS responding, just slowly) is never retried —
-// that would just double an already-long wait. onDelta can't have fired
-// yet on either retried path, so retrying can't duplicate output already
-// sent to the client.
+// Retries via the shared bounded-retry policy (see retry.ts) — the same
+// one document and vision analysis use, rather than a second copy of it
+// here. Only the classes worth retrying: a dropped connection or a
+// capacity rejection before any content arrived, plus a stream that
+// ended completely empty. A plain "timeout" (the model IS responding,
+// just slowly) is still never retried — that would just double an
+// already-long wait.
+//
+// Safe by construction: every retryable class above is one where the
+// stream produced no content, so onDelta cannot have fired and a retry
+// cannot duplicate output already sent to the client. streamChatDeltas
+// guarantees this — once it has emitted a delta it returns rather than
+// throwing (see its catch), so a throw always means nothing was sent.
 async function streamWithBoundedRetry(
   messages: ChatMessage[],
   onDelta: (text: string) => void
 ): Promise<void> {
-  try {
-    await streamChatDeltas(messages, { model: MODELS.chat, maxTokens: 700, disableThinking: true }, onDelta);
-  } catch (error) {
-    if (error instanceof AiServiceError && (error.code === "network_error" || error.code === "rate_limited")) {
-      const backoffMs = error.code === "rate_limited" ? 800 : 0;
-      console.warn(`[AI] ${error.code} before any content arrived — retrying once${backoffMs ? ` after ${backoffMs}ms` : ""}.`);
-      if (backoffMs) await new Promise((resolve) => setTimeout(resolve, backoffMs));
-      await streamChatDeltas(messages, { model: MODELS.chat, maxTokens: 700, disableThinking: true }, onDelta);
-      return;
-    }
-    throw error;
-  }
+  await withBoundedRetry(
+    () => streamChatDeltas(messages, { model: MODELS.chat, maxTokens: 700, disableThinking: true }, onDelta),
+    "[AI] chat",
+    ["network_error", "rate_limited", "empty_response"]
+  );
 }
 
 // ─── Health Report Summary ──────────────────────────────
